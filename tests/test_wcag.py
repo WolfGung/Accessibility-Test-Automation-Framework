@@ -35,7 +35,8 @@ def test_a_tag_that_is_not_a_criterion_is_passed_over(tag: str) -> None:
 
 
 def test_the_criteria_of_a_rule_come_out_in_the_tags_order_and_nothing_else() -> None:
-    # The tags of axe's `label` rule, as a rule carries them: category, level, criteria and other standards mixed.
+    # A synthetic list in the shape a rule carries: category, level, criteria and other standards mixed, with a 4.x
+    # and a 1.x criterion so that the order is seen to be the tags' (the vendored `label` rule itself carries 4.1.2).
     tags = ["cat.forms", "wcag2a", "wcag412", "wcag131", "section508", "section508.22.n", "TTv5", "EN-9.4.1.2", "ACT"]
     assert criteria_from_tags(tags) == ("4.1.2", "1.3.1")
 

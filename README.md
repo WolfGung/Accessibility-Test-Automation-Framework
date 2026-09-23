@@ -73,7 +73,7 @@ make test       # the whole suite: both shops, both layers, in one process
 
 On Linux, `playwright install --with-deps chromium` also installs the browser's system packages, which takes root; `make install` installs the browser alone.
 
-`make test` is `pytest`. It starts a fixed and a broken shop in threads of the test process, runs the HTTP tests against the fixed one and the markup tests against both, then the scan and the keyboard checks in Chromium against both, and at the end of a complete run writes `results/a11y.json`. A partial run, one module or a `-k` selection, writes nothing and says so in its summary.
+`make test` is `pytest`. It starts a fixed and a broken shop in threads of the test process, runs the HTTP tests against the fixed one, the markup tests against both, and the scan and the keyboard checks in Chromium against both, and at the end of a complete run writes `results/a11y.json`. A partial run, one module or a `-k` selection, writes nothing and says so in its summary.
 
 ```bash
 python -m tools.report --readme           # print the tables the results file gives
@@ -116,9 +116,9 @@ The tests, counted by `pytest --collect-only` and pinned by [`tests/test_readme_
 | [`tests/test_vendor.py`](tests/test_vendor.py) | the vendored axe-core is 4.13.0 byte for byte, with its licence | 3 |
 | [`tests/test_axe.py`](tests/test_axe.py) | the scan in Chromium: nothing serious on the fixed shop; on the broken one, each violation the registry says axe finds and nothing serious it does not explain | 22 |
 | [`tests/test_keyboard.py`](tests/test_keyboard.py) | the keyboard checks in Chromium: clean on the fixed shop; on the broken one, each violation the registry says they find and nothing else | 31 |
-| [`tests/test_report.py`](tests/test_report.py) | the results file, the tables, the published page (scanned with axe as the shop is) and the checklist | 32 |
+| [`tests/test_report.py`](tests/test_report.py) | the results file, the tables, the published page (scanned with axe as the shop is) and the checklist | 33 |
 | [`tests/test_readme_pins.py`](tests/test_readme_pins.py) | this README: the block, these counts, the registry's numbers, the links, the badges and the words | 12 |
-| the whole suite, `make test` | all of the rows above, in one process, against shops it starts itself | 231 |
+| the whole suite, `make test` | all of the rows above, in one process, against shops it starts itself | 232 |
 
 ## Licence
 

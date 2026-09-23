@@ -25,6 +25,7 @@ from pathlib import Path
 import jinja2
 
 from tools.report import (
+    COLUMNS,
     FINDINGS_HEADER,
     REGISTRY_HEADER,
     ROOT,
@@ -58,7 +59,7 @@ def build(data: dict, *, commit: str, date: str) -> str:
         report=REPORT,
         findings={"header": FINDINGS_HEADER, "rows": findings_rows(data)},
         registry={"header": REGISTRY_HEADER, "rows": registry_rows(data)},
-        totals={mode: total_findings(data, mode) for mode in ("broken", "fixed")},
+        totals={mode: total_findings(data, mode) for mode in COLUMNS},
     )
 
 

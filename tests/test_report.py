@@ -129,6 +129,15 @@ def test_the_file_text_is_sorted_indented_and_ends_with_a_newline() -> None:
     assert text.index('"axe"') < text.index('"by_criterion"') < text.index('"keyboard"')
 
 
+def test_the_criteria_come_out_in_the_file_s_sorted_order_which_is_the_text_s() -> None:
+    # `to_json` sorts every key, so the file's order of criteria is the text's: "2.4.11" before "2.4.3". `summarize`
+    # gives them in that order too, so what is read back from the file is what was summarized, key for key.
+    data = summarize([Record("broken", "checkout", "axe", (finding("late", "minor", "2.4.3", "2.4.11", "1.4.3"),))])
+    keys = list(data["modes"]["broken"]["by_criterion"])
+    assert keys == ["1.4.3", "2.4.11", "2.4.3"] == sorted(keys)
+    assert keys == list(json.loads(to_json(data))["modes"]["broken"]["by_criterion"])
+
+
 def test_a_record_names_a_shop_and_a_check_the_suite_has() -> None:
     with pytest.raises(ValueError, match="mode"):
         Record("loud", "list", "axe", ())

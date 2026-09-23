@@ -24,8 +24,8 @@ TAGS = ("wcag2a", "wcag2aa", "wcag21a", "wcag21aa")
 #: The impacts a fixed page must not carry. axe grades each finding minor, moderate, serious or critical.
 SERIOUS = frozenset({"serious", "critical"})
 
-# Runs axe on the context it is given (a selector, or the whole document) and answers with the violations only.
-_RUN = "([context, options]) => axe.run(context ?? document, options).then((results) => results.violations)"
+# Runs axe on the whole document and answers with the violations only.
+_RUN = "(options) => axe.run(document, options).then((results) => results.violations)"
 
 
 @dataclass(frozen=True)
@@ -46,12 +46,12 @@ def describe(finding: Finding) -> str:
     return f"{finding.rule} [{finding.impact}] ({criteria}) at {finding.selector}: {finding.help} — {finding.help_url}"
 
 
-def scan(page: Page, *, include: str | None = None) -> list[Finding]:
-    """The violations axe finds on the page, or inside `include` (a CSS selector), one finding per element."""
+def scan(page: Page) -> list[Finding]:
+    """The violations axe finds on the whole page, one finding per element."""
     if page.evaluate("typeof axe === 'undefined'"):
         page.add_script_tag(path=str(AXE))
     options = {"runOnly": {"type": "tag", "values": list(TAGS)}, "resultTypes": ["violations"]}
-    violations = page.evaluate(_RUN, [include, options])
+    violations = page.evaluate(_RUN, options)
     return [
         Finding(
             rule=violation["id"],

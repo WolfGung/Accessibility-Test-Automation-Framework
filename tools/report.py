@@ -142,7 +142,8 @@ def summarize(records: Iterable[Record]) -> dict:
             mode: {
                 "axe": {"by_impact": by_impact[mode]},
                 "keyboard": {"by_check": by_check[mode]},
-                "by_criterion": dict(sorted(by_criterion[mode].items(), key=lambda item: _numbers(item[0]))),
+                # In the file's order, which `to_json` makes the sorted one (lexical, and today also numeric).
+                "by_criterion": dict(sorted(by_criterion[mode].items())),
             }
             for mode in MODES
         },
@@ -157,11 +158,6 @@ def summarize(records: Iterable[Record]) -> dict:
             for violation in VIOLATIONS
         ],
     }
-
-
-def _numbers(criterion: str) -> tuple[int, ...]:
-    """`"2.4.11"` → `(2, 4, 11)`, so that criteria sort as numbers."""
-    return tuple(int(part) for part in criterion.split("."))
 
 
 def total_findings(data: dict, mode: str) -> int:

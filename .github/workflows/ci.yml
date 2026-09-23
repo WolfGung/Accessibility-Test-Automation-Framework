@@ -94,6 +94,8 @@ jobs:
           tar -xzf "$RUNNER_TEMP/allure.tgz" -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/allure-$ALLURE_VERSION/bin" >> "$GITHUB_PATH"
       - name: Build the page and the report
+        # The runner image ships the Java that `allure generate` needs, so
+        # there is no setup-java step.
         run: |
           python -m tools.site
           allure generate allure-results --clean --output site/report

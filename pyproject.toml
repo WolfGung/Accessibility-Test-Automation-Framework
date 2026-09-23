@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,14 @@ version = "0.1.0"
 description = "A small shop and the checks that test its pages against WCAG 2.1 AA success criteria"
 authors = [{ name = "Pavel Zhukov Atum" }]
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Framework :: Pytest",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.32",
@@ -17,6 +24,9 @@ dependencies = [
     "itsdangerous>=2.2",
     "playwright>=1.63",
 ]
+
+[project.urls]
+Repository = "https://github.com/WolfGung/Accessibility-Test-Automation-Framework"
 
 [project.optional-dependencies]
 dev = [

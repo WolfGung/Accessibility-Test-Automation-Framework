@@ -42,7 +42,8 @@ VIOLATIONS: tuple[Violation, ...] = (
         page="checkout",
         where=(
             'The email address field: "Email address" stands above it as plain text that nothing ties to it; '
-            "no `label`, no `aria-label`, no `aria-labelledby`, no `title` and no `placeholder`"
+            "no `label`, no `aria-label`, no `aria-labelledby`, no `title` and no `placeholder`. axe reports the "
+            "missing name under 4.1.2; 1.3.1 is the relationship the visible words fail to carry"
         ),
         detected_by="axe",
     ),
