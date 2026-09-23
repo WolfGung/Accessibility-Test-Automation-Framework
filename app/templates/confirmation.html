@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Order placed{% endblock %}
+{% block content %}
+    <h1>Thank you for your order</h1>
+    <p>This is a demonstration shop: nothing is charged, nothing is sent to {{ order.details["email"] }} and nothing is delivered.</p>
+    <h2>Delivery address</h2>
+    <p class="delivery-address" data-testid="delivery-address">
+      {{ order.details["name"] }}<br>
+      {{ order.details["address"] }}<br>
+      {{ order.details["postcode"] }} {{ order.details["city"] }}<br>
+      {{ country }}
+    </p>
+    <h2>What you ordered</h2>
+    <ul class="order-lines" data-testid="order-lines">
+      {% for line in order.lines %}
+      <li><span>{{ line.quantity }} × {{ line.product.name }}</span> <span>{{ line.subtotal_cents|price }}</span></li>
+      {% endfor %}
+    </ul>
+    <p class="order-total">Total <span data-testid="order-total">{{ order.total_cents|price }}</span></p>
+    <p><a href="/" data-testid="back-to-products">Back to products</a></p>
+{% endblock %}

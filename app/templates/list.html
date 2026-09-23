@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Products{% endblock %}
+{% block content %}
+    <h1>Products</h1>
+    <ul class="product-grid">
+      {% for product in products %}
+      <li class="product-card" id="product-{{ product.id }}">
+        <img class="product-image" src="/static/img/{{ product.image }}" alt="{{ product.alt }}" width="240" height="180" data-testid="product-image-{{ product.id }}">
+        <h2 class="product-name"><a href="/product/{{ product.id }}" data-testid="product-link-{{ product.id }}">{{ product.name }}</a></h2>
+        <p class="price" data-testid="product-price-{{ product.id }}">{{ product.price_cents|price }}</p>
+        <form class="product-add" method="post" action="/cart/add">
+          <input type="hidden" name="product_id" value="{{ product.id }}">
+          <input type="hidden" name="quantity" value="1">
+          <input type="hidden" name="return_to" value="list">
+          <button type="submit" class="button" data-testid="add-to-cart-{{ product.id }}">Add to cart<span class="visually-hidden">: {{ product.name }}</span></button>
+        </form>
+        {% if in_cart.get(product.id) %}
+        <p class="in-cart" data-testid="in-cart-{{ product.id }}">In your cart: {{ in_cart[product.id] }}</p>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+{% endblock %}

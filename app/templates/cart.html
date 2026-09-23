@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Your cart{% endblock %}
+{% block content %}
+    <h1>Your cart</h1>
+    {% if lines %}
+    <ul class="cart-lines">
+      {% for line in lines %}
+      <li class="cart-line" data-testid="cart-line-{{ line.product.id }}">
+        <p class="cart-line-product">
+          <a href="/product/{{ line.product.id }}" data-testid="cart-product-link-{{ line.product.id }}">{{ line.product.name }}</a>
+          <span class="cart-line-each" data-testid="line-price-{{ line.product.id }}">{{ line.product.price_cents|price }} each</span>
+        </p>
+        <p class="cart-line-quantity">Quantity: <span data-testid="line-quantity-{{ line.product.id }}">{{ line.quantity }}</span></p>
+        <p class="cart-line-subtotal">Subtotal: <span data-testid="line-subtotal-{{ line.product.id }}">{{ line.subtotal_cents|price }}</span></p>
+        <form class="cart-line-remove" method="post" action="/cart/remove">
+          <input type="hidden" name="product_id" value="{{ line.product.id }}">
+          <button type="submit" class="icon-button" aria-label="Remove {{ line.product.name }}" data-testid="remove-{{ line.product.id }}">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+              <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="cart-total">Total <span data-testid="cart-total">{{ total_cents|price }}</span></p>
+    <p><a class="button" href="/checkout" data-testid="checkout-link">Checkout</a></p>
+    {% else %}
+    <p data-testid="cart-empty">Your cart is empty.</p>
+    <p><a href="/" data-testid="browse-products">Browse products</a></p>
+    {% endif %}
+{% endblock %}

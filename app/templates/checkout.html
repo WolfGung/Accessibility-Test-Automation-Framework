@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{# Every field reports an error the same way, through these three: the error
+   text next to the field, the link from the field to that text, and a marked
+   border around the field. #}
+{% macro field_class(field) -%}
+field{% if field in errors %} field-with-error{% endif %}
+{%- endmacro %}
+{% macro error_message(field) -%}
+{% if field in errors %}<p class="field-error" id="{{ field }}-error" data-testid="error-{{ field }}"><span class="visually-hidden">Error: </span>{{ errors[field] }}</p>{% endif %}
+{%- endmacro %}
+{% macro error_attributes(field) -%}
+{% if field in errors %} aria-invalid="true" aria-describedby="{{ field }}-error"{% endif %}
+{%- endmacro %}
+{% block title %}{% if errors %}Error: {% endif %}Checkout{% endblock %}
+{% block content %}
+    <h1>Checkout</h1>
+    <div class="checkout">
+      <form class="checkout-form" method="post" action="/checkout" novalidate data-testid="checkout-form">
+        {% if errors %}
+        {# Focus lands here when the page comes back with errors, so the list is the first thing read. #}
+        <div class="error-summary" tabindex="-1" autofocus data-testid="error-summary">
+          <h2>There is a problem</h2>
+          <ul>
+            {% for field, message in errors.items() %}
+            <li><a href="#{{ field }}" data-testid="error-link-{{ field }}">{{ message }}</a></li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        <p>All fields are required.</p>
+        <div class="{{ field_class('name') }}">
+          <label for="name">Full name</label>
+          {{ error_message("name") }}
+          <input id="name" name="name" type="text" autocomplete="name" required value="{{ values['name'] }}" data-testid="checkout-name"{{ error_attributes("name") }}>
+        </div>
+        <div class="{{ field_class('email') }}">
+          <label for="email">Email address</label>
+          {{ error_message("email") }}
+          <input id="email" name="email" type="email" autocomplete="email" spellcheck="false" required value="{{ values['email'] }}" data-testid="checkout-email"{{ error_attributes("email") }}>
+        </div>
+        <fieldset>
+          <legend>Delivery address</legend>
+          <div class="{{ field_class('address') }}">
+            <label for="address">Street address</label>
+            {{ error_message("address") }}
+            <input id="address" name="address" type="text" autocomplete="address-line1" required value="{{ values['address'] }}" data-testid="checkout-address"{{ error_attributes("address") }}>
+          </div>
+          <div class="{{ field_class('city') }}">
+            <label for="city">Town or city</label>
+            {{ error_message("city") }}
+            <input id="city" name="city" type="text" autocomplete="address-level2" required value="{{ values['city'] }}" data-testid="checkout-city"{{ error_attributes("city") }}>
+          </div>
+          <div class="{{ field_class('postcode') }}">
+            <label for="postcode">Postal code</label>
+            {{ error_message("postcode") }}
+            <input class="input-postcode" id="postcode" name="postcode" type="text" autocomplete="postal-code" required value="{{ values['postcode'] }}" data-testid="checkout-postcode"{{ error_attributes("postcode") }}>
+          </div>
+          <div class="{{ field_class('country') }}">
+            <label for="country">Country</label>
+            {{ error_message("country") }}
+            <select id="country" name="country" autocomplete="country" required data-testid="checkout-country"{{ error_attributes("country") }}>
+              <option value="">Choose a country</option>
+              {% for code, name in countries.items() %}
+              <option value="{{ code }}"{% if values['country'] == code %} selected{% endif %}>{{ name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </fieldset>
+        <button type="submit" class="button" data-testid="place-order">Place order</button>
+      </form>
+      <section class="order-summary" aria-labelledby="order-summary-title">
+        <h2 id="order-summary-title">Your order</h2>
+        {% if lines %}
+        <ul class="order-lines">
+          {% for line in lines %}
+          <li><span>{{ line.quantity }} × {{ line.product.name }}</span> <span>{{ line.subtotal_cents|price }}</span></li>
+          {% endfor %}
+        </ul>
+        <p class="order-total">Total <span data-testid="checkout-total">{{ total_cents|price }}</span></p>
+        {% else %}
+        <p>Your cart is empty. <a href="/" data-testid="checkout-browse-products">Browse products</a></p>
+        {% endif %}
+      </section>
+    </div>
+{% endblock %}

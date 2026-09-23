@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }}{% endblock %}
+{% block content %}
+    <div class="product">
+      <img class="product-photo" src="/static/img/{{ product.image }}" alt="{{ product.alt }}" width="480" height="360" data-testid="product-image">
+      <div class="product-details">
+        <h1>{{ product.name }}</h1>
+        <p class="price product-price" data-testid="product-price">{{ product.price_cents|price }}</p>
+        <p>{{ product.description }}</p>
+        <form class="product-add" method="post" action="/cart/add">
+          <input type="hidden" name="product_id" value="{{ product.id }}">
+          <input type="hidden" name="return_to" value="product">
+          <div class="field">
+            <label for="quantity">Quantity</label>
+            <input class="input-quantity" id="quantity" name="quantity" type="number" inputmode="numeric" min="1" max="{{ max_quantity }}" value="1" required data-testid="quantity">
+          </div>
+          <button type="submit" class="button" id="add-to-cart" data-testid="add-to-cart">Add to cart</button>
+        </form>
+        {% if in_cart %}
+        <p class="in-cart" data-testid="in-cart">In your cart: {{ in_cart }}</p>
+        {% endif %}
+      </div>
+    </div>
+{% endblock %}
+{% block dialog %}
+{% if added %}
+  {# Rendered hidden; shop.js opens it, moves focus into it and keeps it there until it is closed. #}
+  <div class="dialog-backdrop" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="added-title" aria-describedby="added-message" data-dialog data-opener="add-to-cart" data-testid="added-dialog">
+      <h2 id="added-title">Added to cart</h2>
+      <p id="added-message">{{ product.name }} is in your cart. Quantity: {{ in_cart }}.</p>
+      <div class="dialog-actions">
+        <button type="button" class="button button-secondary" data-dialog-close data-testid="continue-shopping">Continue shopping</button>
+        <a class="button" href="/cart" data-testid="go-to-cart">Go to cart</a>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

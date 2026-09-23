@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.env
+# What a run writes: raw Allure results, the rendered report, the findings
+# file and the published page are built from a run, not kept in history.
+allure-results*
+allure-report/
+results/
+site/
+test-results/

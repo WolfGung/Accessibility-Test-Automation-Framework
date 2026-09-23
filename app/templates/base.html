@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% endblock %} – Example Shop</title>
+  <link rel="stylesheet" href="/static/shop.css">
+  <style>
+    /* Two rules live here instead of in shop.css, so that each is one place
+       in the page source: the colour of prices and the focus indicator. */
+
+    /* #0b6e4f on white is 6.25:1; text needs at least 4.5:1. */
+    .price { color: #0b6e4f; }
+
+    /* Every link, button and field shows where the keyboard is. */
+    :focus-visible { outline: 3px solid #1a56db; outline-offset: 2px; }
+  </style>
+  <script src="/static/shop.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-testid="skip-link">Skip to main content</a>
+  <header class="site-header">
+    <a class="site-name" href="/" data-testid="home-link"{% if current_page == "list" %} aria-current="page"{% endif %}>Example Shop</a>
+    <nav aria-label="Main">
+      <a href="/cart" data-testid="cart-link"{% if current_page == "cart" %} aria-current="page"{% endif %}>Cart <span data-testid="cart-count">({{ cart_count }}<span class="visually-hidden"> {{ "item" if cart_count == 1 else "items" }}</span>)</span></a>
+    </nav>
+  </header>
+  <main id="main">
+{% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <p>A demonstration shop for accessibility checks. Nothing here is for sale.</p>
+  </footer>
+{% block dialog %}{% endblock %}
+</body>
+</html>
