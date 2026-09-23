@@ -136,8 +136,10 @@ def create_app(mode: str | None = None) -> FastAPI:
             "current_page": "product",
             "product": product,
             "in_cart": in_cart,
-            # Open the dialog only when the product really is in the cart, so a
-            # bookmarked `?added=1` cannot announce something that did not happen.
+            # `?added=1` comes from the redirect after "Add to cart", but on its
+            # own it proves nothing: the dialog also needs the product to be in
+            # the cart. shop.js drops the parameter from the address as soon as
+            # the dialog opens, so a reload or coming Back does not reopen it.
             "added": added and in_cart > 0,
             "max_quantity": MAX_QUANTITY,
         }
@@ -153,22 +155,32 @@ def create_app(mode: str | None = None) -> FastAPI:
         product = product_or_404(product_id)
         carts.add(ensure_cart_id(request), product, quantity)
         if return_to == "list":
-            # Back to the card that was used, so a keyboard or screen reader
-            # user carries on from where they were rather than from the top.
-            return RedirectResponse(f"/#product-{product.id}", status_code=303)
+            # Back to the button that was used: the browser focuses the element
+            # a fragment names, so a keyboard or screen reader user carries on
+            # from there, and the button is now described by "In your cart: N".
+            return RedirectResponse(f"/#add-to-cart-{product.id}", status_code=303)
         return RedirectResponse(f"/product/{product.id}?added=1", status_code=303)
 
     @app.post("/cart/remove")
     async def cart_remove(request: Request, product_id: Annotated[int, Form()]) -> Response:
         product = get_product(product_id)
-        if product is not None:
-            carts.remove(cart_id(request), product)
+        if product is not None and carts.remove(cart_id(request), product):
+            # The cart page says what was removed and puts focus on that line.
+            return RedirectResponse(f"/cart?removed={product.id}", status_code=303)
         return RedirectResponse("/cart", status_code=303)
 
     @app.get("/cart", response_class=HTMLResponse)
-    async def cart_page(request: Request) -> Response:
+    async def cart_page(request: Request, removed: int | None = None) -> Response:
         found = cart_id(request)
-        context = {"current_page": "cart", "lines": carts.lines(found), "total_cents": carts.total_cents(found)}
+        gone = get_product(removed) if removed is not None else None
+        if gone is not None and carts.quantity(found, gone):
+            gone = None  # it is back in the cart, so "was removed" would no longer be true
+        context = {
+            "current_page": "cart",
+            "lines": carts.lines(found),
+            "total_cents": carts.total_cents(found),
+            "removed": gone,
+        }
         return render(request, "cart.html", context)
 
     @app.get("/checkout", response_class=HTMLResponse)

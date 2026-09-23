@@ -6,9 +6,11 @@ HTML parser, through `data-testid` and `id` attributes rather than layout.
 """
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
+from pathlib import Path
 
 import httpx
 import pytest
@@ -116,6 +118,21 @@ class Page(HTMLParser):
 
 def page_of(response: httpx.Response) -> Page:
     return Page(response.text)
+
+
+STYLESHEET = Path(__file__).resolve().parents[1] / "app" / "static" / "shop.css"
+
+
+def css_rule(selectors: str) -> dict[str, str]:
+    """The declarations of the stylesheet's top-level rule for exactly these selectors."""
+    css = re.sub(r"/\*.*?\*/", "", STYLESHEET.read_text(encoding="utf-8"), flags=re.S)
+    css = re.sub(r"@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", "", css)  # rules inside @media are not top-level
+    wanted = [part.strip() for part in selectors.split(",")]
+    for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", css):
+        if [part.strip() for part in match.group(1).split(",")] == wanted:
+            pairs = (declaration.split(":", 1) for declaration in match.group(2).split(";") if ":" in declaration)
+            return {name.strip(): value.strip() for name, value in pairs}
+    raise AssertionError(f"no top-level rule for {selectors!r} in {STYLESHEET.name}")
 
 
 # --- fixtures and steps ----------------------------------------------------
@@ -261,6 +278,9 @@ async def test_adding_on_the_product_page_comes_back_with_the_dialog(shop: httpx
     )
     go_to_cart = page.testid("go-to-cart")
     assert (go_to_cart.tag, go_to_cart.attrs["href"], go_to_cart.text) == ("a", "/cart", "Go to cart")
+    # Focus comes back to "Add to cart" when the dialog closes; the button then says what is in the cart.
+    described_by = page.testid("add-to-cart").attrs["aria-describedby"]
+    assert page.one(id=described_by).text == "In your cart: 2"
 
 
 async def test_the_dialog_needs_the_product_to_be_in_the_cart(shop: httpx.AsyncClient) -> None:
@@ -270,14 +290,16 @@ async def test_the_dialog_needs_the_product_to_be_in_the_cart(shop: httpx.AsyncC
     assert not page_of(await shop.get("/product/2")).has_testid("added-dialog")
 
 
-async def test_adding_on_the_list_comes_back_to_the_same_card(shop: httpx.AsyncClient) -> None:
+async def test_adding_on_the_list_comes_back_to_the_button_that_was_used(shop: httpx.AsyncClient) -> None:
     response = await add(shop, 3, return_to="list")
     assert response.status_code == 303
-    assert response.headers["location"] == "/#product-3"
+    assert response.headers["location"] == "/#add-to-cart-3"
 
     page = page_of(await shop.get("/"))
-    assert page.one("li", id="product-3").attrs["class"] == "product-card"
-    assert page.testid("in-cart-3").text == "In your cart: 1"
+    button = page.one(id="add-to-cart-3")  # the element the fragment names, which the browser focuses
+    assert button.attrs["data-testid"] == "add-to-cart-3"
+    assert page.one(id=button.attrs["aria-describedby"]).text == "In your cart: 1"
+    assert "aria-describedby" not in page.one(id="add-to-cart-1").attrs
     assert not page.has_testid("in-cart-1")
 
 
@@ -307,8 +329,8 @@ async def test_removing_a_line_takes_it_out_of_the_total(shop: httpx.AsyncClient
 
     response = await remove(shop, TOTE_BAG.id)
     assert response.status_code == 303
-    assert response.headers["location"] == "/cart"
-    page = page_of(await shop.get("/cart"))
+    assert response.headers["location"] == f"/cart?removed={TOTE_BAG.id}"
+    page = page_of(await shop.get(response.headers["location"]))
     assert not page.has_testid(f"cart-line-{TOTE_BAG.id}")
     assert page.testid("cart-total").text == format_price(MUG.price_cents)
     assert page.testid("cart-count").text == "(1 item)"
@@ -320,12 +342,36 @@ async def test_removing_a_line_takes_it_out_of_the_total(shop: httpx.AsyncClient
     assert page.testid("cart-count").text == "(0 items)"
 
 
+async def test_after_a_remove_focus_lands_on_a_line_saying_what_was_removed(shop: httpx.AsyncClient) -> None:
+    await add(shop, TOTE_BAG.id)
+    await add(shop, MUG.id)
+    response = await remove(shop, MUG.id)
+    page = page_of(await shop.get(response.headers["location"]))
+    notice = page.testid("removed-notice")
+    assert notice.text == "Ceramic mug was removed from your cart."
+    assert (notice.attrs["tabindex"], "autofocus" in notice.attrs) == ("-1", True)
+    assert [element.attrs.get("data-testid") for element in page.all() if "autofocus" in element.attrs] == [
+        "removed-notice"
+    ]
+
+
+async def test_the_removed_line_is_not_claimed_once_it_is_untrue(shop: httpx.AsyncClient) -> None:
+    await add(shop, MUG.id)
+    await remove(shop, MUG.id)
+    await add(shop, MUG.id)  # back in the cart: "was removed" would be wrong now
+    assert not page_of(await shop.get(f"/cart?removed={MUG.id}")).has_testid("removed-notice")
+    assert not page_of(await shop.get("/cart?removed=999")).has_testid("removed-notice")
+    assert not page_of(await shop.get("/cart")).has_testid("removed-notice")
+
+
 async def test_removing_what_is_not_in_the_cart_changes_nothing(shop: httpx.AsyncClient) -> None:
     await add(shop, MUG.id)
     for product_id in (TOTE_BAG.id, 999):
         response = await remove(shop, product_id)
         assert (response.status_code, response.headers["location"]) == (303, "/cart")
-    assert page_of(await shop.get("/cart")).testid("cart-total").text == format_price(MUG.price_cents)
+    page = page_of(await shop.get("/cart"))
+    assert page.testid("cart-total").text == format_price(MUG.price_cents)
+    assert not page.has_testid("removed-notice")
 
 
 async def test_the_remove_control_is_a_button_named_after_its_product(shop: httpx.AsyncClient) -> None:
@@ -400,6 +446,9 @@ async def test_an_empty_submit_reports_every_field_next_to_it_and_in_the_summary
     summary = page.testid("error-summary")
     assert summary.attrs["tabindex"] == "-1"
     assert "autofocus" in summary.attrs
+    # Focus lands on the summary, so it has a role and a name: "There is a problem", group.
+    assert summary.attrs["role"] == "group"
+    assert page.one(id=summary.attrs["aria-labelledby"]).text == "There is a problem"
     links = [link for link in page.all("a") if link.attrs.get("data-testid", "").startswith("error-link-")]
     assert [(link.attrs["href"], link.text) for link in links] == [
         (f"#{name}", checkout.MISSING[name]) for name in checkout.FIELDS
@@ -484,6 +533,27 @@ async def test_the_checkout_page_shows_what_is_being_ordered(shop: httpx.AsyncCl
     await add(shop, TOTE_BAG.id, quantity=2)
     page = page_of(await shop.get("/checkout"))
     assert page.testid("checkout-total").text == format_price(2 * TOTE_BAG.price_cents)
+
+
+# --- styles only a browser shows working (checked there; pinned here) -------
+
+
+def test_the_dialog_scrolls_inside_its_backdrop_when_it_is_taller_than_the_window() -> None:
+    backdrop = css_rule(".dialog-backdrop")
+    assert backdrop["overflow-y"] == "auto"
+    # Centring with place-items would push the top of a tall dialog out of reach; auto margins do not.
+    assert not {"place-items", "align-items", "align-content"} & backdrop.keys()
+    assert css_rule(".dialog")["margin"] == "auto"
+
+
+def test_the_dialog_keeps_an_edge_in_forced_colours() -> None:
+    # A transparent border is drawn in forced-colours mode, where the box shadow is dropped.
+    assert css_rule(".dialog")["border"] == "2px solid transparent"
+
+
+def test_a_field_reached_from_the_error_summary_keeps_its_label_and_error_in_view() -> None:
+    # 9rem holds the label and a three-line error at 320 CSS px with WCAG text spacing (8.25rem measured).
+    assert css_rule("input, select")["scroll-margin-top"] == "9rem"
 
 
 # --- the mode --------------------------------------------------------------

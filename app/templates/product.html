@@ -14,10 +14,10 @@
             <label for="quantity">Quantity</label>
             <input class="input-quantity" id="quantity" name="quantity" type="number" inputmode="numeric" min="1" max="{{ max_quantity }}" value="1" required data-testid="quantity">
           </div>
-          <button type="submit" class="button" id="add-to-cart" data-testid="add-to-cart">Add to cart</button>
+          <button type="submit" class="button" id="add-to-cart" data-testid="add-to-cart"{% if in_cart %} aria-describedby="in-cart"{% endif %}>Add to cart</button>
         </form>
         {% if in_cart %}
-        <p class="in-cart" data-testid="in-cart">In your cart: {{ in_cart }}</p>
+        <p class="in-cart" id="in-cart" data-testid="in-cart">In your cart: {{ in_cart }}</p>
         {% endif %}
       </div>
     </div>

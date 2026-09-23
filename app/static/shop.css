@@ -244,6 +244,10 @@ select {
   background: #ffffff;
   color: #1f2933;
   font: inherit;
+  /* A link from the error summary scrolls its field into view with the label
+     and the error text still above it. 9rem holds a three-line error at
+     320 CSS px with WCAG text spacing applied (8.25rem measured). */
+  scroll-margin-top: 9rem;
 }
 
 .input-quantity {
@@ -388,6 +392,13 @@ legend {
   }
 }
 
+.notice {
+  margin: 0 0 1.5rem;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid #1a56db;
+  background: #f5f7fa;
+}
+
 .cart-total {
   display: flex;
   justify-content: space-between;
@@ -399,12 +410,16 @@ legend {
 
 /* The "Added to cart" dialog */
 
+/* When the dialog is taller than the window (zoom, a larger default font,
+   text spacing) the backdrop scrolls, so every control can still be reached.
+   The dialog's auto margins centre it only while it fits. */
 .dialog-backdrop {
   position: fixed;
   inset: 0;
   z-index: 20;
   display: grid;
-  place-items: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 1rem;
   background: rgba(31, 41, 51, 0.6);
 }
@@ -412,7 +427,11 @@ legend {
 .dialog {
   width: 100%;
   max-width: 28rem;
+  margin: auto;
   padding: 1.5rem;
+  /* Not seen normally; in forced colours it is drawn, and it is the only edge
+     the dialog has there, because the shadow is dropped. */
+  border: 2px solid transparent;
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);

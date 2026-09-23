@@ -48,8 +48,9 @@ class CartStore:
         cart = self._carts.setdefault(cart_id, {})
         cart[product] = cart.get(product, 0) + quantity
 
-    def remove(self, cart_id: str | None, product: Product) -> None:
-        self._carts.get(cart_id or "", {}).pop(product, None)
+    def remove(self, cart_id: str | None, product: Product) -> bool:
+        """Take the product's line out of the cart; False when there was no such line."""
+        return self._carts.get(cart_id or "", {}).pop(product, None) is not None
 
     def lines(self, cart_id: str | None) -> list[CartLine]:
         """The cart's lines in the order their products were first added."""

@@ -2,6 +2,10 @@
 {% block title %}Your cart{% endblock %}
 {% block content %}
     <h1>Your cart</h1>
+    {% if removed %}
+    {# After "Remove" focus lands here, so the first thing read is what happened. #}
+    <p class="notice" tabindex="-1" autofocus data-testid="removed-notice">{{ removed.name }} was removed from your cart.</p>
+    {% endif %}
     {% if lines %}
     <ul class="cart-lines">
       {% for line in lines %}

@@ -17,9 +17,10 @@ field{% if field in errors %} field-with-error{% endif %}
     <div class="checkout">
       <form class="checkout-form" method="post" action="/checkout" novalidate data-testid="checkout-form">
         {% if errors %}
-        {# Focus lands here when the page comes back with errors, so the list is the first thing read. #}
-        <div class="error-summary" tabindex="-1" autofocus data-testid="error-summary">
-          <h2>There is a problem</h2>
+        {# Focus lands here when the page comes back with errors, so the list is the first thing read.
+           A named group, so that moving focus to it announces "There is a problem" before the list. #}
+        <div class="error-summary" role="group" aria-labelledby="error-summary-title" tabindex="-1" autofocus data-testid="error-summary">
+          <h2 id="error-summary-title">There is a problem</h2>
           <ul>
             {% for field, message in errors.items() %}
             <li><a href="#{{ field }}" data-testid="error-link-{{ field }}">{{ message }}</a></li>

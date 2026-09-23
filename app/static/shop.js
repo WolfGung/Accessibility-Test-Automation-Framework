@@ -5,7 +5,8 @@
  * hidden. This script opens it: the rest of the page becomes inert, focus
  * moves to the dialog's first control, and Tab and Shift+Tab go round its
  * controls. Escape and "Continue shopping" close it and put focus back on the
- * button that opened it.
+ * button that opened it. It is shown once: a reload or coming Back to the page
+ * does not show it again.
  */
 (function () {
   "use strict";
@@ -28,6 +29,9 @@
       element.inert = true;
     });
     document.addEventListener("keydown", onKeydown);
+    // The dialog has now been shown: drop `?added=1` from the address, so that
+    // neither a reload nor coming Back to this page opens it a second time.
+    history.replaceState(null, "", window.location.pathname);
     controls()[0].focus();
   }
 
@@ -37,8 +41,6 @@
       element.inert = false;
     });
     backdrop.hidden = true;
-    // Drop `?added=1`, so that reloading the page does not open the dialog again.
-    history.replaceState(null, "", window.location.pathname);
     if (opener) {
       opener.focus();
     }
@@ -68,6 +70,15 @@
 
   dialog.querySelectorAll("[data-dialog-close]").forEach((control) => {
     control.addEventListener("click", close);
+  });
+
+  // A browser with a back/forward cache brings the page back exactly as it was
+  // left: after "Go to cart" and Back, with the dialog still open. It has been
+  // seen by then, so close it.
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted && !backdrop.hidden) {
+      close();
+    }
   });
 
   open();
