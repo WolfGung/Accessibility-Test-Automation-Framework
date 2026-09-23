@@ -121,10 +121,15 @@ def _focused(page: Page) -> _Stop:
 
 
 def _tabs(page: Page) -> Iterator[_Stop]:
-    """Each press of Tab and where it lands, until focus returns to an element it has been on (where it started
-    counts, and so does the body, where focus rests between the last control and the first) or `TAB_LIMIT` is spent.
+    """The control focus is on before any press, when there is one (a dialog puts the shopper on its first control as
+    it opens, a checkout on its error summary; the body, where focus rests otherwise, is not a stop), then each press
+    of Tab and where it lands, until focus returns to an element it has been on (where it started counts, and so does
+    the body, where focus rests between the last control and the first) or `TAB_LIMIT` is spent.
     """
-    seen = {_focused(page).key}
+    start = _focused(page)
+    seen = {start.key}
+    if start.tag != "body":
+        yield start
     for _ in range(TAB_LIMIT):
         page.keyboard.press("Tab")
         stop = _focused(page)
@@ -139,15 +144,19 @@ def _names(stops: list[_Stop]) -> str:
 
 
 def _reach(page: Page, testid: str) -> str | None:
-    """Press Tab until focus is on the element with this `data-testid`; when it never is, where Tab went, in words."""
+    """Press Tab until focus is on the element with this `data-testid` (no press when it is there already); when it
+    never is, where Tab went, in words.
+    """
+    start = _focused(page)
     stops: list[_Stop] = []
     for stop in _tabs(page):
         if stop.testid == testid:
             return None
         stops.append(stop)
-    if len(stops) == TAB_LIMIT:  # every press landed somewhere new: the limit ended the walk, not a return
-        return f"{TAB_LIMIT} presses of Tab did not come round to {testid}, going through {_names(stops)}"
-    return f"Tab reaches {_names(stops)}, never {testid}"
+    landed = [stop for stop in stops if stop.key != start.key]  # where Tab went: the control it began on is not that
+    if len(landed) == TAB_LIMIT:  # every press landed somewhere new: the limit ended the walk, not a return
+        return f"{TAB_LIMIT} presses of Tab did not come round to {testid}, going through {_names(landed)}"
+    return f"Tab reaches {_names(landed)}, never {testid}"
 
 
 def _leave(page: Page, key: str, to: str) -> bool:
@@ -212,8 +221,9 @@ def focus_order(page: Page, url: str, expected: list[str]) -> list[KeyFinding]:
 
 def focus_visible(page: Page, url: str | None = None) -> list[KeyFinding]:
     """Tab through the page at `url` — or through the page as it stands, when no address is given — and read how each
-    element is drawn while it has focus: its computed `outline-style`, `outline-width` and `box-shadow`. A finding for
-    each element with no outline drawn and no shadow cast (2.4.7).
+    element is drawn while it has focus: its computed `outline-style`, `outline-width` and `box-shadow`. The control
+    the page put focus on before any press, if there is one, is read first. A finding for each element with no
+    outline drawn and no shadow cast (2.4.7).
     """
     if url is not None:
         page.goto(url)

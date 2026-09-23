@@ -16,10 +16,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import pytest
+from playwright.sync_api import Page
 
 from a11y.keyboard import (
     CRITERIA,
     KeyFinding,
+    _tabs,
     checkout_by_keyboard,
     describe,
     dialog_escape,
@@ -94,9 +96,10 @@ RUNS = (
         lambda pages, shop: focus_order(pages.page, pages.visit(shop, "checkout").url, CHECKOUT_ORDER),
     ),
     *(Run("focus_visible", page_name, visible_on(page_name)) for page_name in ("list", "product", "cart", "checkout")),
-    # The broken dialog puts focus on itself and takes it back on every Tab, so nothing there is a Tab stop and
-    # `focus_visible` has nothing to read: the trap checks carry the verdict on that dialog. The run stays, for the
-    # fixed dialog's controls and so that nothing unexplained can appear on the broken one.
+    # The broken dialog puts focus on itself and takes it back on every Tab, so the dialog is the one stop there and
+    # its outline is drawn: the trap checks carry the verdict on that dialog. The run stays, for the fixed dialog's
+    # controls (the one it focuses as it opens and the one Tab reaches) and so that nothing unexplained can appear on
+    # the broken one.
     Run("focus_visible", "dialog", visible_as_it_stands("dialog"), looks_for_plants=False),
     Run("focus_visible", "checkout-errors", visible_as_it_stands("checkout-errors")),
     Run("dialog_escape", "product", lambda pages, shop: dialog_escape(pages.page, f"{shop}/product/{MUG.id}")),
@@ -165,6 +168,31 @@ def test_every_finding_on_the_broken_shop_is_a_planted_violation(pages: Pages, b
         f"{run.check} reports on the broken shop's {run.state} what no registry entry with detected_by='keyboard' "
         f"explains:\n{lines(unexplained)}"
     )
+
+
+def test_focus_visible_reads_the_control_a_page_puts_focus_on_before_any_press(page: Page) -> None:
+    """A page that moves focus on its own as it opens — a dialog to its first control, a checkout to its error
+    summary — puts the shopper on a control without a press of Tab. That control is read like every Tab stop: here
+    the first button, focused by the page's script and drawn without an outline, is a finding next to the second.
+    """
+    page.set_content(
+        "<style>button:focus { outline: none }</style>"
+        '<button data-testid="first">First</button><button data-testid="second">Second</button>'
+        '<script>document.querySelector("[data-testid=first]").focus()</script>'
+    )
+    findings = focus_visible(page)
+    assert [finding.detail.split(" shows ")[0] for finding in findings] == [
+        "On blank, first (button)",
+        "On blank, second (button)",
+    ]
+
+
+def test_the_fixed_dialog_s_stops_begin_with_the_control_it_focuses(pages: Pages, fixed_shop: str) -> None:
+    """The fixed dialog puts focus on "Continue shopping" as it opens; the walk `focus_visible` makes through it reads
+    that control first, then "Go to cart", so both controls' focus indicators are checked.
+    """
+    pages.visit(fixed_shop, "dialog")
+    assert [stop.name for stop in _tabs(pages.page)] == ["continue-shopping", "go-to-cart"]
 
 
 def test_each_keyboard_entry_has_a_run_that_looks_for_it() -> None:
