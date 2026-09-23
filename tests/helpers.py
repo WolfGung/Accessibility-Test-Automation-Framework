@@ -1,5 +1,5 @@
-"""What the test modules share: a client for a shop in this process, a step a shopper takes, a reader for the pages,
-and a way to put a check's findings on the report.
+"""What the test modules share: a client for a running shop, a step a shopper takes, a reader for the pages, and a
+way to put a check's findings on the report.
 
 Pages are read with the standard library's HTML parser, through `data-testid`
 and `id` attributes rather than layout.
@@ -15,15 +15,17 @@ from typing import TYPE_CHECKING
 
 import allure
 import httpx
-from fastapi import FastAPI
 
 if TYPE_CHECKING:
     from a11y.axe import Finding
 
 
-def client_for(app: FastAPI) -> httpx.AsyncClient:
-    """A client for the shop in this process that keeps its cookies, like one browser would."""
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://shop.test")
+def client_for(shop: str) -> httpx.Client:
+    """A client for the running shop at this base URL that keeps its cookies, like one browser would.
+
+    Redirects are not followed: a test sees each 303 and its `Location` as the shop sent them.
+    """
+    return httpx.Client(base_url=shop, follow_redirects=False)
 
 
 # --- a step a shopper takes ------------------------------------------------
@@ -39,11 +41,9 @@ VALID_DETAILS = {
 }
 
 
-async def add(
-    client: httpx.AsyncClient, product_id: int, quantity: int = 1, return_to: str = "product"
-) -> httpx.Response:
+def add(client: httpx.Client, product_id: int, quantity: int = 1, return_to: str = "product") -> httpx.Response:
     """Add a product to the cart, as the form on the product page does (or the list's, with `return_to="list"`)."""
-    return await client.post(
+    return client.post(
         "/cart/add", data={"product_id": str(product_id), "quantity": str(quantity), "return_to": return_to}
     )
 

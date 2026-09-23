@@ -1,12 +1,13 @@
 """The shop's behaviour over HTTP, without a browser.
 
-Each test gets a fresh shop in the `fixed` mode and a client that keeps its
-cookies, like one browser would. The pages are read with the standard library's
-HTML parser, through `data-testid` and `id` attributes rather than layout.
+Each test gets its own client on the running shop in the `fixed` mode, one that
+keeps its cookies like one browser would, so its own cart. The pages are read
+with the standard library's HTML parser, through `data-testid` and `id`
+attributes rather than layout.
 """
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import Iterator
 from pathlib import Path
 
 import httpx
@@ -17,8 +18,6 @@ from app import checkout
 from app.catalog import PRODUCTS, format_price
 from app.main import create_app
 from tests.helpers import VALID_DETAILS, add, client_for, page_of, rule_in
-
-pytestmark = pytest.mark.anyio
 
 TOTE_BAG, MUG, NOTEBOOK = PRODUCTS[:3]
 
@@ -34,18 +33,18 @@ def css_rule(selectors: str) -> dict[str, str]:
 
 
 @pytest.fixture
-async def shop() -> AsyncIterator[httpx.AsyncClient]:
-    """A fresh shop and one browser session on it."""
-    async with client_for(create_app("fixed")) as client:
+def client(fixed_shop: str) -> Iterator[httpx.Client]:
+    """One browser session on the fixed shop, with a cart of its own."""
+    with client_for(fixed_shop) as client:
         yield client
 
 
-async def remove(client: httpx.AsyncClient, product_id: int) -> httpx.Response:
-    return await client.post("/cart/remove", data={"product_id": str(product_id)})
+def remove(client: httpx.Client, product_id: int) -> httpx.Response:
+    return client.post("/cart/remove", data={"product_id": str(product_id)})
 
 
-async def submit_checkout(client: httpx.AsyncClient, details: dict[str, str]) -> httpx.Response:
-    return await client.post("/checkout", data=details)
+def submit_checkout(client: httpx.Client, details: dict[str, str]) -> httpx.Response:
+    return client.post("/checkout", data=details)
 
 
 def without(field_name: str) -> dict[str, str]:
@@ -64,28 +63,28 @@ def without(field_name: str) -> dict[str, str]:
         ("/checkout", "Checkout", "Checkout – Example Shop"),
     ],
 )
-async def test_each_page_answers_with_its_heading_and_title(
-    shop: httpx.AsyncClient, path: str, heading: str, title: str
+def test_each_page_answers_with_its_heading_and_title(
+    client: httpx.Client, path: str, heading: str, title: str
 ) -> None:
-    response = await shop.get(path)
+    response = client.get(path)
     assert response.status_code == 200
     page = page_of(response)
     assert page.heading == heading
     assert page.title == title
 
 
-async def test_the_confirmation_page_answers_with_its_heading_after_an_order(shop: httpx.AsyncClient) -> None:
-    await add(shop, 1)
-    await submit_checkout(shop, VALID_DETAILS)
-    response = await shop.get("/confirmation")
+def test_the_confirmation_page_answers_with_its_heading_after_an_order(client: httpx.Client) -> None:
+    add(client, 1)
+    submit_checkout(client, VALID_DETAILS)
+    response = client.get("/confirmation")
     assert response.status_code == 200
     page = page_of(response)
     assert page.heading == "Thank you for your order"
     assert page.title == "Order placed – Example Shop"
 
 
-async def test_the_list_shows_six_products_with_image_name_price_link_and_button(shop: httpx.AsyncClient) -> None:
-    page = page_of(await shop.get("/"))
+def test_the_list_shows_six_products_with_image_name_price_link_and_button(client: httpx.Client) -> None:
+    page = page_of(client.get("/"))
     cards = page.all("li", class_="product-card")
     assert [card.attrs["id"] for card in cards] == [f"product-{number}" for number in range(1, 7)]
     for product in PRODUCTS:
@@ -100,16 +99,16 @@ async def test_the_list_shows_six_products_with_image_name_price_link_and_button
         assert button.text == f"Add to cart: {product.name}"
 
 
-async def test_every_product_image_is_served(shop: httpx.AsyncClient) -> None:
+def test_every_product_image_is_served(client: httpx.Client) -> None:
     for product in PRODUCTS:
-        response = await shop.get(f"/static/img/{product.image}")
+        response = client.get(f"/static/img/{product.image}")
         assert response.status_code == 200, product.image
         assert response.headers["content-type"].startswith("image/svg+xml")
 
 
-async def test_a_product_page_shows_image_description_price_and_a_labelled_quantity(shop: httpx.AsyncClient) -> None:
+def test_a_product_page_shows_image_description_price_and_a_labelled_quantity(client: httpx.Client) -> None:
     product = PRODUCTS[3]
-    page = page_of(await shop.get(f"/product/{product.id}"))
+    page = page_of(client.get(f"/product/{product.id}"))
     assert page.testid("product-image").attrs["alt"] == product.alt
     assert product.description in page.one("main").text
     assert page.testid("product-price").text == format_price(product.price_cents)
@@ -125,23 +124,23 @@ async def test_a_product_page_shows_image_description_price_and_a_labelled_quant
     )
 
 
-async def test_an_unknown_product_is_not_found(shop: httpx.AsyncClient) -> None:
-    assert (await shop.get("/product/999")).status_code == 404
+def test_an_unknown_product_is_not_found(client: httpx.Client) -> None:
+    assert client.get("/product/999").status_code == 404
 
 
-async def test_health_reports_the_mode(shop: httpx.AsyncClient) -> None:
-    assert (await shop.get("/healthz")).json() == {"status": "ok", "mode": "fixed"}
+def test_health_reports_the_mode(client: httpx.Client) -> None:
+    assert client.get("/healthz").json() == {"status": "ok", "mode": "fixed"}
 
 
 # --- the cart --------------------------------------------------------------
 
 
-async def test_adding_on_the_product_page_comes_back_with_the_dialog(shop: httpx.AsyncClient) -> None:
-    response = await add(shop, 2, quantity=2)
+def test_adding_on_the_product_page_comes_back_with_the_dialog(client: httpx.Client) -> None:
+    response = add(client, 2, quantity=2)
     assert response.status_code == 303
     assert response.headers["location"] == "/product/2?added=1"
 
-    page = page_of(await shop.get(response.headers["location"]))
+    page = page_of(client.get(response.headers["location"]))
     dialog = page.testid("added-dialog")
     assert dialog.attrs["role"] == "dialog"
     assert dialog.attrs["aria-modal"] == "true"
@@ -161,19 +160,19 @@ async def test_adding_on_the_product_page_comes_back_with_the_dialog(shop: httpx
     assert page.one(id=described_by).text == "In your cart: 2"
 
 
-async def test_the_dialog_needs_the_product_to_be_in_the_cart(shop: httpx.AsyncClient) -> None:
-    assert not page_of(await shop.get("/product/2")).has_testid("added-dialog")
-    assert not page_of(await shop.get("/product/2?added=1")).has_testid("added-dialog")
-    await add(shop, 2)
-    assert not page_of(await shop.get("/product/2")).has_testid("added-dialog")
+def test_the_dialog_needs_the_product_to_be_in_the_cart(client: httpx.Client) -> None:
+    assert not page_of(client.get("/product/2")).has_testid("added-dialog")
+    assert not page_of(client.get("/product/2?added=1")).has_testid("added-dialog")
+    add(client, 2)
+    assert not page_of(client.get("/product/2")).has_testid("added-dialog")
 
 
-async def test_adding_on_the_list_comes_back_to_the_button_that_was_used(shop: httpx.AsyncClient) -> None:
-    response = await add(shop, 3, return_to="list")
+def test_adding_on_the_list_comes_back_to_the_button_that_was_used(client: httpx.Client) -> None:
+    response = add(client, 3, return_to="list")
     assert response.status_code == 303
     assert response.headers["location"] == "/#add-to-cart-3"
 
-    page = page_of(await shop.get("/"))
+    page = page_of(client.get("/"))
     button = page.one(id="add-to-cart-3")  # the element the fragment names, which the browser focuses
     assert button.attrs["data-testid"] == "add-to-cart-3"
     assert page.one(id=button.attrs["aria-describedby"]).text == "In your cart: 1"
@@ -181,12 +180,12 @@ async def test_adding_on_the_list_comes_back_to_the_button_that_was_used(shop: h
     assert not page.has_testid("in-cart-1")
 
 
-async def test_lines_quantities_and_the_total_add_up(shop: httpx.AsyncClient) -> None:
-    await add(shop, TOTE_BAG.id, quantity=2)
-    await add(shop, NOTEBOOK.id)
-    await add(shop, TOTE_BAG.id)  # the same product again: its line grows
+def test_lines_quantities_and_the_total_add_up(client: httpx.Client) -> None:
+    add(client, TOTE_BAG.id, quantity=2)
+    add(client, NOTEBOOK.id)
+    add(client, TOTE_BAG.id)  # the same product again: its line grows
 
-    page = page_of(await shop.get("/cart"))
+    page = page_of(client.get("/cart"))
     assert [line.attrs["data-testid"] for line in page.all("li") if "data-testid" in line.attrs] == [
         f"cart-line-{TOTE_BAG.id}",
         f"cart-line-{NOTEBOOK.id}",
@@ -201,30 +200,30 @@ async def test_lines_quantities_and_the_total_add_up(shop: httpx.AsyncClient) ->
     assert page.testid("checkout-link").attrs["href"] == "/checkout"
 
 
-async def test_removing_a_line_takes_it_out_of_the_total(shop: httpx.AsyncClient) -> None:
-    await add(shop, TOTE_BAG.id, quantity=2)
-    await add(shop, MUG.id)
+def test_removing_a_line_takes_it_out_of_the_total(client: httpx.Client) -> None:
+    add(client, TOTE_BAG.id, quantity=2)
+    add(client, MUG.id)
 
-    response = await remove(shop, TOTE_BAG.id)
+    response = remove(client, TOTE_BAG.id)
     assert response.status_code == 303
     assert response.headers["location"] == f"/cart?removed={TOTE_BAG.id}"
-    page = page_of(await shop.get(response.headers["location"]))
+    page = page_of(client.get(response.headers["location"]))
     assert not page.has_testid(f"cart-line-{TOTE_BAG.id}")
     assert page.testid("cart-total").text == format_price(MUG.price_cents)
     assert page.testid("cart-count").text == "(1 item)"
 
-    await remove(shop, MUG.id)
-    page = page_of(await shop.get("/cart"))
+    remove(client, MUG.id)
+    page = page_of(client.get("/cart"))
     assert page.testid("cart-empty").text == "Your cart is empty."
     assert not page.has_testid("checkout-link")
     assert page.testid("cart-count").text == "(0 items)"
 
 
-async def test_after_a_remove_focus_lands_on_a_line_saying_what_was_removed(shop: httpx.AsyncClient) -> None:
-    await add(shop, TOTE_BAG.id)
-    await add(shop, MUG.id)
-    response = await remove(shop, MUG.id)
-    page = page_of(await shop.get(response.headers["location"]))
+def test_after_a_remove_focus_lands_on_a_line_saying_what_was_removed(client: httpx.Client) -> None:
+    add(client, TOTE_BAG.id)
+    add(client, MUG.id)
+    response = remove(client, MUG.id)
+    page = page_of(client.get(response.headers["location"]))
     notice = page.testid("removed-notice")
     assert notice.text == "Ceramic mug was removed from your cart."
     assert (notice.attrs["tabindex"], "autofocus" in notice.attrs) == ("-1", True)
@@ -233,28 +232,28 @@ async def test_after_a_remove_focus_lands_on_a_line_saying_what_was_removed(shop
     ]
 
 
-async def test_the_removed_line_is_not_claimed_once_it_is_untrue(shop: httpx.AsyncClient) -> None:
-    await add(shop, MUG.id)
-    await remove(shop, MUG.id)
-    await add(shop, MUG.id)  # back in the cart: "was removed" would be wrong now
-    assert not page_of(await shop.get(f"/cart?removed={MUG.id}")).has_testid("removed-notice")
-    assert not page_of(await shop.get("/cart?removed=999")).has_testid("removed-notice")
-    assert not page_of(await shop.get("/cart")).has_testid("removed-notice")
+def test_the_removed_line_is_not_claimed_once_it_is_untrue(client: httpx.Client) -> None:
+    add(client, MUG.id)
+    remove(client, MUG.id)
+    add(client, MUG.id)  # back in the cart: "was removed" would be wrong now
+    assert not page_of(client.get(f"/cart?removed={MUG.id}")).has_testid("removed-notice")
+    assert not page_of(client.get("/cart?removed=999")).has_testid("removed-notice")
+    assert not page_of(client.get("/cart")).has_testid("removed-notice")
 
 
-async def test_removing_what_is_not_in_the_cart_changes_nothing(shop: httpx.AsyncClient) -> None:
-    await add(shop, MUG.id)
+def test_removing_what_is_not_in_the_cart_changes_nothing(client: httpx.Client) -> None:
+    add(client, MUG.id)
     for product_id in (TOTE_BAG.id, 999):
-        response = await remove(shop, product_id)
+        response = remove(client, product_id)
         assert (response.status_code, response.headers["location"]) == (303, "/cart")
-    page = page_of(await shop.get("/cart"))
+    page = page_of(client.get("/cart"))
     assert page.testid("cart-total").text == format_price(MUG.price_cents)
     assert not page.has_testid("removed-notice")
 
 
-async def test_the_remove_control_is_a_button_named_after_its_product(shop: httpx.AsyncClient) -> None:
-    await add(shop, NOTEBOOK.id)
-    page = page_of(await shop.get("/cart"))
+def test_the_remove_control_is_a_button_named_after_its_product(client: httpx.Client) -> None:
+    add(client, NOTEBOOK.id)
+    page = page_of(client.get("/cart"))
     button = page.testid(f"remove-{NOTEBOOK.id}")
     assert (button.tag, button.attrs["type"], button.attrs["aria-label"]) == (
         "button",
@@ -265,34 +264,32 @@ async def test_the_remove_control_is_a_button_named_after_its_product(shop: http
 
 
 @pytest.mark.parametrize("quantity", ["0", "11", "-1", "two", ""])
-async def test_a_quantity_outside_one_to_ten_is_refused(shop: httpx.AsyncClient, quantity: str) -> None:
-    response = await shop.post("/cart/add", data={"product_id": "1", "quantity": quantity})
+def test_a_quantity_outside_one_to_ten_is_refused(client: httpx.Client, quantity: str) -> None:
+    response = client.post("/cart/add", data={"product_id": "1", "quantity": quantity})
     assert response.status_code == 422
-    assert page_of(await shop.get("/cart")).has_testid("cart-empty")
+    assert page_of(client.get("/cart")).has_testid("cart-empty")
 
 
-async def test_adding_an_unknown_product_is_not_found(shop: httpx.AsyncClient) -> None:
-    assert (await add(shop, 999)).status_code == 404
+def test_adding_an_unknown_product_is_not_found(client: httpx.Client) -> None:
+    assert add(client, 999).status_code == 404
 
 
-async def test_each_browser_session_has_its_own_cart() -> None:
-    app = create_app("fixed")
-    async with client_for(app) as first, client_for(app) as second:
-        await add(first, MUG.id, quantity=3)
-        assert page_of(await first.get("/cart")).testid(f"line-quantity-{MUG.id}").text == "3"
-        assert page_of(await second.get("/cart")).has_testid("cart-empty")
+def test_each_browser_session_has_its_own_cart(fixed_shop: str) -> None:
+    with client_for(fixed_shop) as first, client_for(fixed_shop) as second:
+        add(first, MUG.id, quantity=3)
+        assert page_of(first.get("/cart")).testid(f"line-quantity-{MUG.id}").text == "3"
+        assert page_of(second.get("/cart")).has_testid("cart-empty")
 
 
-async def test_an_altered_cart_cookie_is_not_honoured() -> None:
+def test_an_altered_cart_cookie_is_not_honoured(fixed_shop: str) -> None:
     """The cookie is signed: change one character of what it says and the shop ignores it."""
-    app = create_app("fixed")
-    async with client_for(app) as owner:
-        await add(owner, MUG.id)
+    with client_for(fixed_shop) as owner:
+        add(owner, MUG.id)
         cookie = owner.cookies["shop_session"]
     altered = ("f" if cookie[0] != "f" else "g") + cookie[1:]
-    async with client_for(app) as other:
-        as_sent = page_of(await other.get("/cart", headers={"Cookie": f"shop_session={cookie}"}))
-        as_altered = page_of(await other.get("/cart", headers={"Cookie": f"shop_session={altered}"}))
+    with client_for(fixed_shop) as other:
+        as_sent = page_of(other.get("/cart", headers={"Cookie": f"shop_session={cookie}"}))
+        as_altered = page_of(other.get("/cart", headers={"Cookie": f"shop_session={altered}"}))
     assert as_sent.testid(f"line-quantity-{MUG.id}").text == "1"
     assert as_altered.has_testid("cart-empty")
 
@@ -307,8 +304,8 @@ def test_prices_are_written_in_euros_with_two_decimals() -> None:
 # --- checkout --------------------------------------------------------------
 
 
-async def test_an_empty_submit_reports_every_field_next_to_it_and_in_the_summary(shop: httpx.AsyncClient) -> None:
-    response = await submit_checkout(shop, {})
+def test_an_empty_submit_reports_every_field_next_to_it_and_in_the_summary(client: httpx.Client) -> None:
+    response = submit_checkout(client, {})
     assert response.status_code == 200
     page = page_of(response)
     assert page.title == "Error: Checkout – Example Shop"
@@ -334,8 +331,8 @@ async def test_an_empty_submit_reports_every_field_next_to_it_and_in_the_summary
 
 
 @pytest.mark.parametrize("missing", checkout.FIELDS)
-async def test_a_missing_field_is_reported_on_that_field_alone(shop: httpx.AsyncClient, missing: str) -> None:
-    response = await submit_checkout(shop, without(missing))
+def test_a_missing_field_is_reported_on_that_field_alone(client: httpx.Client, missing: str) -> None:
+    response = submit_checkout(client, without(missing))
     assert response.status_code == 200
     page = page_of(response)
 
@@ -356,8 +353,8 @@ async def test_a_missing_field_is_reported_on_that_field_alone(shop: httpx.Async
     "email",
     ["jana", "jana@", "@example.com", "jana@example", "jana@example.", "jana @example.com", "jana@@example.com"],
 )
-async def test_an_email_of_the_wrong_shape_is_reported(shop: httpx.AsyncClient, email: str) -> None:
-    response = await submit_checkout(shop, {**VALID_DETAILS, "email": email})
+def test_an_email_of_the_wrong_shape_is_reported(client: httpx.Client, email: str) -> None:
+    response = submit_checkout(client, {**VALID_DETAILS, "email": email})
     assert response.status_code == 200
     page = page_of(response)
     assert page.testid("error-email").text == f"Error: {checkout.EMAIL_FORMAT}"
@@ -365,26 +362,26 @@ async def test_an_email_of_the_wrong_shape_is_reported(shop: httpx.AsyncClient, 
     assert page.one(id="email").attrs["value"] == email
 
 
-async def test_a_country_the_shop_does_not_list_is_reported(shop: httpx.AsyncClient) -> None:
-    page = page_of(await submit_checkout(shop, {**VALID_DETAILS, "country": "XX"}))
+def test_a_country_the_shop_does_not_list_is_reported(client: httpx.Client) -> None:
+    page = page_of(submit_checkout(client, {**VALID_DETAILS, "country": "XX"}))
     assert page.testid("error-country").text == "Error: Select your country"
 
 
-async def test_the_chosen_country_stays_selected_when_the_form_comes_back(shop: httpx.AsyncClient) -> None:
-    page = page_of(await submit_checkout(shop, without("name")))
+def test_the_chosen_country_stays_selected_when_the_form_comes_back(client: httpx.Client) -> None:
+    page = page_of(submit_checkout(client, without("name")))
     selected = [option for option in page.all("option") if "selected" in option.attrs]
     assert [(option.attrs["value"], option.text) for option in selected] == [("DE", "Germany")]
 
 
-async def test_a_valid_order_goes_to_the_confirmation_and_empties_the_cart(shop: httpx.AsyncClient) -> None:
-    await add(shop, MUG.id, quantity=2)
-    await add(shop, NOTEBOOK.id)
+def test_a_valid_order_goes_to_the_confirmation_and_empties_the_cart(client: httpx.Client) -> None:
+    add(client, MUG.id, quantity=2)
+    add(client, NOTEBOOK.id)
 
-    response = await submit_checkout(shop, {**VALID_DETAILS, "email": "  jana@example.com  "})
+    response = submit_checkout(client, {**VALID_DETAILS, "email": "  jana@example.com  "})
     assert response.status_code == 303
     assert response.headers["location"] == "/confirmation"
 
-    confirmation = page_of(await shop.get("/confirmation"))
+    confirmation = page_of(client.get("/confirmation"))
     assert confirmation.testid("order-total").text == format_price(2 * MUG.price_cents + NOTEBOOK.price_cents)
     assert confirmation.testid("order-lines").text == (
         f"2 × Ceramic mug {format_price(2 * MUG.price_cents)} 1 × Dotted notebook {format_price(NOTEBOOK.price_cents)}"
@@ -392,24 +389,24 @@ async def test_a_valid_order_goes_to_the_confirmation_and_empties_the_cart(shop:
     assert confirmation.testid("delivery-address").text == "Jana Novak 12 Example Street 10115 Berlin Germany"
     assert "jana@example.com" in confirmation.one("main").text
 
-    cart = page_of(await shop.get("/cart"))
+    cart = page_of(client.get("/cart"))
     assert cart.has_testid("cart-empty")
     assert cart.testid("cart-count").text == "(0 items)"
 
 
-async def test_valid_details_with_an_empty_cart_go_back_to_the_cart(shop: httpx.AsyncClient) -> None:
-    response = await submit_checkout(shop, VALID_DETAILS)
+def test_valid_details_with_an_empty_cart_go_back_to_the_cart(client: httpx.Client) -> None:
+    response = submit_checkout(client, VALID_DETAILS)
     assert (response.status_code, response.headers["location"]) == (303, "/cart")
 
 
-async def test_the_confirmation_without_an_order_goes_to_the_products(shop: httpx.AsyncClient) -> None:
-    response = await shop.get("/confirmation")
+def test_the_confirmation_without_an_order_goes_to_the_products(client: httpx.Client) -> None:
+    response = client.get("/confirmation")
     assert (response.status_code, response.headers["location"]) == (303, "/")
 
 
-async def test_the_checkout_page_shows_what_is_being_ordered(shop: httpx.AsyncClient) -> None:
-    await add(shop, TOTE_BAG.id, quantity=2)
-    page = page_of(await shop.get("/checkout"))
+def test_the_checkout_page_shows_what_is_being_ordered(client: httpx.Client) -> None:
+    add(client, TOTE_BAG.id, quantity=2)
+    page = page_of(client.get("/checkout"))
     assert page.testid("checkout-total").text == format_price(2 * TOTE_BAG.price_cents)
 
 

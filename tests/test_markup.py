@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
-from collections.abc import AsyncIterator, Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import httpx
@@ -19,11 +19,8 @@ import pytest
 
 from app import checkout
 from app.catalog import PRODUCTS
-from app.main import MODES, create_app
 from app.violations import VIOLATIONS
 from tests.helpers import VALID_DETAILS, Element, Page, add, client_for, page_of, rule_in
-
-pytestmark = pytest.mark.anyio
 
 APP = Path(__file__).resolve().parents[1] / "app"
 
@@ -45,39 +42,34 @@ EVERY_PAGE = ("list", "product", "dialog", "cart", "checkout", "checkout-errors"
 # --- fixtures and steps ----------------------------------------------------
 
 
-@pytest.fixture(params=MODES)
-def mode(request: pytest.FixtureRequest) -> str:
-    return request.param
-
-
 @pytest.fixture
-async def shop(mode: str) -> AsyncIterator[httpx.AsyncClient]:
-    """A fresh shop in the mode under test, and one browser session on it."""
-    async with client_for(create_app(mode)) as client:
+def client(shop: str) -> Iterator[httpx.Client]:
+    """One browser session on the shop in the mode under test, with a cart of its own."""
+    with client_for(shop) as client:
         yield client
 
 
-async def visit(client: httpx.AsyncClient, state: str) -> Page:
+def visit(client: httpx.Client, state: str) -> Page:
     """The page in this state, after the steps a shopper takes to get there."""
     match state:
         case "list":
-            response = await client.get("/")
+            response = client.get("/")
         case "product":
-            response = await client.get(f"/product/{MUG.id}")
+            response = client.get(f"/product/{MUG.id}")
         case "dialog":
-            assert (await add(client, MUG.id)).status_code == 303
-            response = await client.get(f"/product/{MUG.id}?added=1")
+            assert add(client, MUG.id).status_code == 303
+            response = client.get(f"/product/{MUG.id}?added=1")
         case "cart":
-            assert (await add(client, NOTEBOOK.id)).status_code == 303
-            response = await client.get("/cart")
+            assert add(client, NOTEBOOK.id).status_code == 303
+            response = client.get("/cart")
         case "checkout":
-            response = await client.get("/checkout")
+            response = client.get("/checkout")
         case "checkout-errors":
-            response = await client.post("/checkout", data={})
+            response = client.post("/checkout", data={})
         case "confirmation":
-            assert (await add(client, MUG.id)).status_code == 303
-            await client.post("/checkout", data=VALID_DETAILS)
-            response = await client.get("/confirmation")
+            assert add(client, MUG.id).status_code == 303
+            client.post("/checkout", data=VALID_DETAILS)
+            response = client.get("/confirmation")
         case _:
             raise ValueError(f"no such page state: {state!r}")
     assert response.status_code == 200, (state, response.status_code)
@@ -198,20 +190,20 @@ def test_every_violation_has_its_markup_pinned_here() -> None:
 
 
 @pins("img-alt")
-async def test_list_images_have_alt_text_only_in_the_fixed_mode(shop: httpx.AsyncClient, mode: str) -> None:
-    images = (await visit(shop, "list")).all("img")
+def test_list_images_have_alt_text_only_in_the_fixed_mode(client: httpx.Client, mode: str) -> None:
+    images = visit(client, "list").all("img")
     assert [image.attrs["data-testid"] for image in images] == [f"product-image-{p.id}" for p in PRODUCTS]
     if mode == "broken":
         assert [image.attrs.get("alt") for image in images] == [None] * len(PRODUCTS)  # no alt attribute at all
     else:
         assert [image.attrs.get("alt") for image in images] == [product.alt for product in PRODUCTS]
     # The product page's photo is not part of it: it keeps its text in both modes.
-    assert (await visit(shop, "product")).testid("product-image").attrs["alt"] == MUG.alt
+    assert visit(client, "product").testid("product-image").attrs["alt"] == MUG.alt
 
 
 @pins("field-label")
-async def test_the_email_field_has_a_label_only_in_the_fixed_mode(shop: httpx.AsyncClient, mode: str) -> None:
-    page = await visit(shop, "checkout")
+def test_the_email_field_has_a_label_only_in_the_fixed_mode(client: httpx.Client, mode: str) -> None:
+    page = visit(client, "checkout")
     email = page.one(id="email")
     wrapper = email.parent
     assert wrapper is not None and "field" in wrapper.classes
@@ -235,16 +227,14 @@ async def test_the_email_field_has_a_label_only_in_the_fixed_mode(shop: httpx.As
 
 
 @pins("contrast")
-async def test_the_product_price_has_enough_contrast_only_in_the_fixed_mode(
-    shop: httpx.AsyncClient, mode: str
-) -> None:
+def test_the_product_price_has_enough_contrast_only_in_the_fixed_mode(client: httpx.Client, mode: str) -> None:
     stylesheet = (APP / "static" / "shop.css").read_text(encoding="utf-8")
     # Prices sit on the page's white, nothing under them paints another colour, and only the page's own style
     # block colours them.
     assert rule_in(stylesheet, "body")["background"] == "#ffffff"
     assert "background" not in rule_in(stylesheet, ".product-card")
     assert "color" not in rule_in(stylesheet, ".price") and "color" not in rule_in(stylesheet, ".product-price")
-    product, listing = await visit(shop, "product"), await visit(shop, "list")
+    product, listing = visit(client, "product"), visit(client, "list")
     style = style_of(product)
     assert style == style_of(listing)  # one style block, from base.html, on every page
     # `product-price` is on the product page's price alone; the list's prices carry `price` only.
@@ -267,8 +257,8 @@ async def test_the_product_price_has_enough_contrast_only_in_the_fixed_mode(
 
 
 @pins("mouse-only")
-async def test_add_to_cart_on_the_list_is_a_button_only_in_the_fixed_mode(shop: httpx.AsyncClient, mode: str) -> None:
-    page = await visit(shop, "list")
+def test_add_to_cart_on_the_list_is_a_button_only_in_the_fixed_mode(client: httpx.Client, mode: str) -> None:
+    page = visit(client, "list")
     for product in PRODUCTS:
         control = page.testid(f"add-to-cart-{product.id}")
         form = control.parent
@@ -284,10 +274,8 @@ async def test_add_to_cart_on_the_list_is_a_button_only_in_the_fixed_mode(shop: 
 
 
 @pins("keyboard-trap")
-async def test_the_added_dialog_can_be_left_with_the_keyboard_only_in_the_fixed_mode(
-    shop: httpx.AsyncClient, mode: str
-) -> None:
-    page = await visit(shop, "dialog")
+def test_the_added_dialog_can_be_left_with_the_keyboard_only_in_the_fixed_mode(client: httpx.Client, mode: str) -> None:
+    page = visit(client, "dialog")
     dialog = page.testid("added-dialog")
     # The same dialog in both modes: a modal, named by its heading and described by its message.
     assert (dialog.attrs["role"], dialog.attrs["aria-modal"]) == ("dialog", "true")
@@ -315,8 +303,8 @@ async def test_the_added_dialog_can_be_left_with_the_keyboard_only_in_the_fixed_
 
 
 @pins("focus-order")
-async def test_tab_follows_the_checkout_form_only_in_the_fixed_mode(shop: httpx.AsyncClient, mode: str) -> None:
-    page = await visit(shop, "checkout")
+def test_tab_follows_the_checkout_form_only_in_the_fixed_mode(client: httpx.Client, mode: str) -> None:
+    page = visit(client, "checkout")
     fields_on_screen = [f"checkout-{name}" for name in checkout.FIELDS]
     # The fields stand in the same order in the document in both modes; that is the order on screen.
     assert [testid for testid in data_testids(page) if testid in fields_on_screen] == fields_on_screen
@@ -335,11 +323,9 @@ async def test_tab_follows_the_checkout_form_only_in_the_fixed_mode(shop: httpx.
 
 
 @pins("focus-visible")
-async def test_links_and_buttons_keep_a_focus_outline_only_in_the_fixed_mode(
-    shop: httpx.AsyncClient, mode: str
-) -> None:
+def test_links_and_buttons_keep_a_focus_outline_only_in_the_fixed_mode(client: httpx.Client, mode: str) -> None:
     # One page stands for all: the style block comes from base.html, which every page extends and none can change.
-    style = style_of(await visit(shop, "list"))
+    style = style_of(visit(client, "list"))
     # Whatever else takes focus (fields, for one) keeps the indicator in both modes.
     assert rule_in(style, ":focus-visible") == {"outline": "3px solid #1a56db", "outline-offset": "2px"}
     outlines = re.findall(r"\boutline\s*:\s*([^;}]+?)\s*[;}]", style)
@@ -351,9 +337,9 @@ async def test_links_and_buttons_keep_a_focus_outline_only_in_the_fixed_mode(
 
 
 @pins("page-lang")
-async def test_pages_say_they_are_in_english_only_in_the_fixed_mode(shop: httpx.AsyncClient, mode: str) -> None:
+def test_pages_say_they_are_in_english_only_in_the_fixed_mode(client: httpx.Client, mode: str) -> None:
     # One page stands for all: the html element comes from base.html, which every page extends and none can change.
-    html = (await visit(shop, "list")).one("html")
+    html = visit(client, "list").one("html")
     if mode == "broken":
         assert not {"lang", "xml:lang"} & html.attrs.keys()
     else:
@@ -361,8 +347,8 @@ async def test_pages_say_they_are_in_english_only_in_the_fixed_mode(shop: httpx.
 
 
 @pins("error-identification")
-async def test_checkout_errors_are_put_into_words_only_in_the_fixed_mode(shop: httpx.AsyncClient, mode: str) -> None:
-    page = await visit(shop, "checkout-errors")
+def test_checkout_errors_are_put_into_words_only_in_the_fixed_mode(client: httpx.Client, mode: str) -> None:
+    page = visit(client, "checkout-errors")
     for name in checkout.FIELDS:
         control = page.one(id=name)
         # The red border is there in both modes: in the broken mode it is the only sign.
@@ -385,10 +371,8 @@ async def test_checkout_errors_are_put_into_words_only_in_the_fixed_mode(shop: h
 
 
 @pins("div-button")
-async def test_the_remove_control_has_a_role_and_a_name_only_in_the_fixed_mode(
-    shop: httpx.AsyncClient, mode: str
-) -> None:
-    page = await visit(shop, "cart")
+def test_the_remove_control_has_a_role_and_a_name_only_in_the_fixed_mode(client: httpx.Client, mode: str) -> None:
+    page = visit(client, "cart")
     control = page.testid(f"remove-{NOTEBOOK.id}")
     form = control.parent
     assert form is not None and (form.tag, form.attrs["action"]) == ("form", "/cart/remove")
@@ -415,10 +399,8 @@ async def test_the_remove_control_has_a_role_and_a_name_only_in_the_fixed_mode(
 
 
 @pytest.mark.parametrize("state", EVERY_PAGE)
-async def test_every_page_starts_with_a_link_to_its_main_content(
-    shop: httpx.AsyncClient, mode: str, state: str
-) -> None:
-    page = await visit(shop, state)
+def test_every_page_starts_with_a_link_to_its_main_content(client: httpx.Client, mode: str, state: str) -> None:
+    page = visit(client, state)
     skip_link = page.testid("skip-link")
     assert (skip_link.tag, skip_link.attrs["href"], skip_link.text) == ("a", "#main", "Skip to main content")
     assert next(element for element in page.elements if tab_index(element) is not None) is skip_link
@@ -431,9 +413,9 @@ ERROR_DISPLAY = {"error-summary"} | {f"error-{name}" for name in checkout.FIELDS
 
 
 @pytest.mark.parametrize("state", EVERY_PAGE)
-async def test_both_modes_render_the_same_elements_in_the_same_order(state: str) -> None:
+def test_both_modes_render_the_same_elements_in_the_same_order(fixed_shop: str, broken_shop: str, state: str) -> None:
     """What the checks look up by data-testid is there in both modes, except the error text the broken mode drops."""
-    async with client_for(create_app("fixed")) as fixed, client_for(create_app("broken")) as broken:
-        in_fixed = data_testids(await visit(fixed, state))
-        in_broken = data_testids(await visit(broken, state))
+    with client_for(fixed_shop) as fixed, client_for(broken_shop) as broken:
+        in_fixed = data_testids(visit(fixed, state))
+        in_broken = data_testids(visit(broken, state))
     assert in_broken == [testid for testid in in_fixed if testid not in ERROR_DISPLAY]
