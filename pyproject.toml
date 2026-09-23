@@ -27,10 +27,12 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["app"]
+# `vendor/` is shipped next to `a11y/`, where `a11y/axe.py` looks for it in a checkout and once installed alike.
+packages = ["app", "a11y", "vendor"]
 
 [tool.setuptools.package-data]
 app = ["templates/*.html", "static/*.css", "static/*.js", "static/img/*.svg"]
+vendor = ["axe.min.js", "axe-core-LICENSE.txt", "README.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -45,4 +47,4 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["app"]
+known-first-party = ["app", "a11y"]

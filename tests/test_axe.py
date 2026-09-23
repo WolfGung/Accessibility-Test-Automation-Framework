@@ -8,9 +8,12 @@ Every scan's findings go on the report.
 """
 from __future__ import annotations
 
+import hashlib
+import re
+
 import pytest
 
-from a11y.axe import SERIOUS, Finding, describe, scan
+from a11y.axe import AXE, SERIOUS, Finding, describe, scan
 from app.violations import VIOLATIONS, Violation
 from tests.conftest import Pages
 from tests.helpers import attach_findings
@@ -86,3 +89,9 @@ def test_the_scan_puts_the_pinned_axe_into_each_document_once(pages: Pages, fixe
     scan(page)
     assert page.evaluate("axe.version") == "4.13.0"
 
+
+def test_the_scan_reads_the_vendored_axe_its_readme_pins() -> None:
+    """The file the scan puts into pages, found from the package rather than from the repository, is the pinned one."""
+    readme = (AXE.parent / "README.md").read_text(encoding="utf-8")
+    [pinned] = re.findall(r"\b[0-9a-f]{64}\b", readme)
+    assert hashlib.sha256(AXE.read_bytes()).hexdigest() == pinned
