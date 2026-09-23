@@ -64,7 +64,7 @@ What that leaves is a page whose findings are known and listed against the crite
 
 ## How to run
 
-Python 3.12 and nothing else on the machine: the suite starts the shops itself, and no test reaches the network.
+Python 3.12 and nothing else on the machine to run the suite: it starts the shops itself, and no test reaches the network.
 
 ```bash
 make install    # the package with its dev extra, editable, and Playwright's Chromium
@@ -95,7 +95,7 @@ A11Y_MODE=broken docker compose up shop    # the broken one
 docker compose run --rm tests              # the whole suite, in a container built from this checkout
 ```
 
-`shop` is Python 3.12 slim and the package, with `A11Y_MODE` passed through and `fixed` when it is not set. `tests` is Playwright's Python image, which ships the Chromium the checks drive, with this checkout copied in and the dev extra installed: the suite runs against shops of its own inside the container, so it needs nothing served to it, and the checkout on the host is not touched.
+`shop` is Python 3.12 slim and the package, with `A11Y_MODE` passed through and `fixed` when it is not set. `tests` is Playwright's Python image, which ships the Chromium the checks drive, with this checkout copied in and the dev extra installed (its Dockerfile is written inside the compose file, which takes Docker Compose 2.17 or newer): the suite runs against shops of its own inside the container, so it needs nothing served to it, and the checkout on the host is not touched.
 
 ## How the repository is put together
 

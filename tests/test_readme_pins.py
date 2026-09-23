@@ -12,7 +12,6 @@ keeps out or a claim a scan cannot make.
 """
 from __future__ import annotations
 
-import codecs
 import os
 import re
 import subprocess
@@ -49,36 +48,34 @@ ACTIONS = frozenset(
         "actions/checkout@v4",
         "actions/setup-python@v5",
         "actions/upload-artifact@v4",
+        "actions/download-artifact@v4",
         "actions/upload-pages-artifact@v3",
         "actions/deploy-pages@v4",
     }
 )
 
 # Words that never appear in this repository: names of tools it does not use,
-# and claims a scan cannot make about a page. They are kept encoded so that
-# the list itself does not put them in.
-KEPT_OUT = tuple(
-    codecs.decode(word, "rot13")
-    for word in (
-        "nv",
-        "yyz",
-        "cebzcg",
-        "tcg",
-        "pbcvybg",
-        "pynhqr",
-        "pungtcg",
-        "naguebcvp",
-        "pbzcyvnag",
-        "pbzcyvnapr",
-        "pregvsvrq",
-        "pregvsvpngvba",
-        "pbasbezf",
-        "pbasbeznapr",
-        "pbasbeznag",
-        "thnenagrr",
-        "thnenagrrq",
-        "thnenagrrf",
-    )
+# and claims a scan cannot make about a page. Each is written as two adjacent
+# string literals, so that the list itself does not put the word in whole.
+KEPT_OUT = (
+    "a" "i",
+    "l" "lm",
+    "pro" "mpt",
+    "g" "pt",
+    "co" "pilot",
+    "cl" "aude",
+    "chatg" "pt",
+    "anth" "ropic",
+    "compl" "iant",
+    "compl" "iance",
+    "cert" "ified",
+    "cert" "ification",
+    "conf" "orms",
+    "conf" "ormance",
+    "conf" "ormant",
+    "guar" "antee",
+    "guar" "anteed",
+    "guar" "antees",
 )
 
 TEXT = README.read_text(encoding="utf-8")
@@ -257,7 +254,9 @@ def test_the_docker_files_are_what_the_readme_says() -> None:
     assert "A11Y_MODE: ${A11Y_MODE:-fixed}" in compose, "compose: A11Y_MODE passed through, fixed when unset"
     assert "127.0.0.1:8000:8000" in compose, "compose: the shop on http://127.0.0.1:8000"
     assert "mcr.microsoft.com/playwright/python:" in compose, "compose: the tests on Playwright's Python image"
-    assert '"[dev]"' in compose or "[dev]" in compose, "compose: the tests install the dev extra"
+    assert "[dev]" in compose, "compose: the tests install the dev extra"
+    if "dockerfile_inline" in compose:
+        assert "Compose 2.17" in TEXT, "README: the tests service's inline Dockerfile takes Compose 2.17 or newer"
 
 
 # --- the words ---------------------------------------------------------------

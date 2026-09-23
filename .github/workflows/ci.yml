@@ -65,7 +65,6 @@ jobs:
       contents: read
       pages: write
       id-token: write
-      actions: read # to read this run's Allure results back
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -84,11 +83,10 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pip install .
-      - name: Fetch the test job's Allure results
-        run: gh run download "$GITHUB_RUN_ID" --name allure-results --dir allure-results
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results
       - name: Install the Allure command line
         run: |
           curl -fsSL -o "$RUNNER_TEMP/allure.tgz" \
