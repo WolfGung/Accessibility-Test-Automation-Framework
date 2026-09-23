@@ -16,18 +16,9 @@ from fastapi import FastAPI
 from app import checkout
 from app.catalog import PRODUCTS, format_price
 from app.main import create_app
-from tests.helpers import client_for, page_of, rule_in
+from tests.helpers import VALID_DETAILS, add, client_for, page_of, rule_in
 
 pytestmark = pytest.mark.anyio
-
-VALID_DETAILS = {
-    "name": "Jana Novak",
-    "email": "jana@example.com",
-    "address": "12 Example Street",
-    "city": "Berlin",
-    "postcode": "10115",
-    "country": "DE",
-}
 
 TOTE_BAG, MUG, NOTEBOOK = PRODUCTS[:3]
 
@@ -47,14 +38,6 @@ async def shop() -> AsyncIterator[httpx.AsyncClient]:
     """A fresh shop and one browser session on it."""
     async with client_for(create_app("fixed")) as client:
         yield client
-
-
-async def add(
-    client: httpx.AsyncClient, product_id: int, quantity: int = 1, return_to: str = "product"
-) -> httpx.Response:
-    return await client.post(
-        "/cart/add", data={"product_id": str(product_id), "quantity": str(quantity), "return_to": return_to}
-    )
 
 
 async def remove(client: httpx.AsyncClient, product_id: int) -> httpx.Response:

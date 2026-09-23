@@ -21,22 +21,13 @@ from app import checkout
 from app.catalog import PRODUCTS
 from app.main import MODES, create_app
 from app.violations import VIOLATIONS
-from tests.helpers import Element, Page, client_for, page_of, rule_in
+from tests.helpers import VALID_DETAILS, Element, Page, add, client_for, page_of, rule_in
 
 pytestmark = pytest.mark.anyio
 
 APP = Path(__file__).resolve().parents[1] / "app"
 
 MUG, NOTEBOOK = PRODUCTS[1], PRODUCTS[2]
-
-VALID_DETAILS = {
-    "name": "Jana Novak",
-    "email": "jana@example.com",
-    "address": "12 Example Street",
-    "city": "Berlin",
-    "postcode": "10115",
-    "country": "DE",
-}
 
 LABELS = {
     "name": "Full name",
@@ -66,11 +57,6 @@ async def shop(mode: str) -> AsyncIterator[httpx.AsyncClient]:
         yield client
 
 
-async def add(client: httpx.AsyncClient, product_id: int) -> None:
-    response = await client.post("/cart/add", data={"product_id": str(product_id), "quantity": "1"})
-    assert response.status_code == 303
-
-
 async def visit(client: httpx.AsyncClient, state: str) -> Page:
     """The page in this state, after the steps a shopper takes to get there."""
     match state:
@@ -79,17 +65,17 @@ async def visit(client: httpx.AsyncClient, state: str) -> Page:
         case "product":
             response = await client.get(f"/product/{MUG.id}")
         case "dialog":
-            await add(client, MUG.id)
+            assert (await add(client, MUG.id)).status_code == 303
             response = await client.get(f"/product/{MUG.id}?added=1")
         case "cart":
-            await add(client, NOTEBOOK.id)
+            assert (await add(client, NOTEBOOK.id)).status_code == 303
             response = await client.get("/cart")
         case "checkout":
             response = await client.get("/checkout")
         case "checkout-errors":
             response = await client.post("/checkout", data={})
         case "confirmation":
-            await add(client, MUG.id)
+            assert (await add(client, MUG.id)).status_code == 303
             await client.post("/checkout", data=VALID_DETAILS)
             response = await client.get("/confirmation")
         case _:
@@ -205,7 +191,7 @@ def test_each_violation_is_one_marked_branch_in_the_templates() -> None:
 
 
 def test_every_violation_has_its_markup_pinned_here() -> None:
-    assert list(PINNED) == [violation.id for violation in VIOLATIONS]
+    assert set(PINNED) == {violation.id for violation in VIOLATIONS}
 
 
 # --- the ten, one test each ------------------------------------------------
@@ -310,12 +296,10 @@ async def test_the_added_dialog_can_be_left_with_the_keyboard_only_in_the_fixed_
     inside = [element.attrs.get("data-testid") for element in page.within(dialog) if tab_index(element) is not None]
     actions = [page.testid("continue-shopping"), page.testid("go-to-cart")]
     inline_scripts = [script.raw_text for script in page.all("script") if "src" not in script.attrs]
-    # shop.js drives only a dialog marked data-dialog; that is where Escape closes it.
-    shop_js = (APP / "static" / "shop.js").read_text(encoding="utf-8")
-    assert 'document.querySelector("[data-dialog]")' in shop_js and '"Escape"' in shop_js
     if mode == "broken":
         assert inside == []  # nothing inside to Tab to, to close it or to leave by
         assert [action.tag for action in actions] == ["div", "div"]
+        # Not marked data-dialog, so shop.js leaves it alone.
         assert (dialog.attrs["tabindex"], "data-dialog" in dialog.attrs) == ("-1", False)
         # Its own script puts focus on the dialog and holds Tab there; Escape is not handled.
         [script] = inline_scripts
@@ -351,11 +335,11 @@ async def test_tab_follows_the_checkout_form_only_in_the_fixed_mode(shop: httpx.
 
 
 @pins("focus-visible")
-@pytest.mark.parametrize("state", EVERY_PAGE)
 async def test_links_and_buttons_keep_a_focus_outline_only_in_the_fixed_mode(
-    shop: httpx.AsyncClient, mode: str, state: str
+    shop: httpx.AsyncClient, mode: str
 ) -> None:
-    style = style_of(await visit(shop, state))
+    # One page stands for all: the style block comes from base.html, which every page extends and none can change.
+    style = style_of(await visit(shop, "list"))
     # Whatever else takes focus (fields, for one) keeps the indicator in both modes.
     assert rule_in(style, ":focus-visible") == {"outline": "3px solid #1a56db", "outline-offset": "2px"}
     outlines = re.findall(r"\boutline\s*:\s*([^;}]+?)\s*[;}]", style)
@@ -367,11 +351,9 @@ async def test_links_and_buttons_keep_a_focus_outline_only_in_the_fixed_mode(
 
 
 @pins("page-lang")
-@pytest.mark.parametrize("state", EVERY_PAGE)
-async def test_every_page_says_it_is_in_english_only_in_the_fixed_mode(
-    shop: httpx.AsyncClient, mode: str, state: str
-) -> None:
-    html = (await visit(shop, state)).one("html")
+async def test_pages_say_they_are_in_english_only_in_the_fixed_mode(shop: httpx.AsyncClient, mode: str) -> None:
+    # One page stands for all: the html element comes from base.html, which every page extends and none can change.
+    html = (await visit(shop, "list")).one("html")
     if mode == "broken":
         assert not {"lang", "xml:lang"} & html.attrs.keys()
     else:

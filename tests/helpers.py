@@ -1,4 +1,4 @@
-"""What the test modules share: a client for a shop in this process, and a reader for the pages it sends.
+"""What the test modules share: a client for a shop in this process, a step a shopper takes, and a reader for the pages.
 
 Pages are read with the standard library's HTML parser, through `data-testid`
 and `id` attributes rather than layout.
@@ -16,6 +16,28 @@ from fastapi import FastAPI
 def client_for(app: FastAPI) -> httpx.AsyncClient:
     """A client for the shop in this process that keeps its cookies, like one browser would."""
     return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://shop.test")
+
+
+# --- a step a shopper takes ------------------------------------------------
+
+#: Details the checkout accepts.
+VALID_DETAILS = {
+    "name": "Jana Novak",
+    "email": "jana@example.com",
+    "address": "12 Example Street",
+    "city": "Berlin",
+    "postcode": "10115",
+    "country": "DE",
+}
+
+
+async def add(
+    client: httpx.AsyncClient, product_id: int, quantity: int = 1, return_to: str = "product"
+) -> httpx.Response:
+    """Add a product to the cart, as the form on the product page does (or the list's, with `return_to="list"`)."""
+    return await client.post(
+        "/cart/add", data={"product_id": str(product_id), "quantity": str(quantity), "return_to": return_to}
+    )
 
 
 # --- reading pages ---------------------------------------------------------
