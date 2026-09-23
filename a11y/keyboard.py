@@ -9,8 +9,8 @@ holds focus or never reaches a control ends a check with a finding, not a hang.
 """
 from __future__ import annotations
 
-import re
 from collections.abc import Iterator
+from contextlib import suppress
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -32,23 +32,27 @@ TAB_LIMIT = 40
 #: How many times each key is tried on an open dialog before it is called a trap.
 TRAP_PRESSES = 20
 
-#: How long, in milliseconds, a page gets to arrive after Enter, or the dialog to open.
+#: How long, in milliseconds, a page gets to arrive after Enter or Space, or the dialog to open.
 PAGE_TIMEOUT = 5_000
 
-#: The journey a shopper makes to buy the first product, stop by stop: the page each stop is on, the control Tab must
-#: reach, and what to do there — press Enter on a link or Space on a button and wait for the address the shop must
-#: answer with, or type a value. The country is typed into its `select`, which picks the option those letters start.
+#: How long, in milliseconds, the dialog gets to hide after Escape: one that hides when a transition ends is not a trap.
+HIDE_TIMEOUT = 1_000
+
+#: The journey a shopper makes to buy the first product, stop by stop: the page each stop is on (as the registry names
+#: pages), the control Tab must reach, and what to do there — press Enter on a link or Space on a button and wait for
+#: the address the shop must answer with, or type a value. The country is typed into its `select`, which picks the
+#: option those letters start.
 STEPS: tuple[tuple[str, str, str, str], ...] = (
-    ("the product list", "add-to-cart-1", "Space", "/#add-to-cart-1"),
-    ("the product list, with the product in the cart", "cart-link", "Enter", "/cart"),
-    ("the cart", "checkout-link", "Enter", "/checkout"),
-    ("the checkout", "checkout-name", "type", "Jana Novak"),
-    ("the checkout", "checkout-email", "type", "jana@example.com"),
-    ("the checkout", "checkout-address", "type", "12 Example Street"),
-    ("the checkout", "checkout-city", "type", "Berlin"),
-    ("the checkout", "checkout-postcode", "type", "10115"),
-    ("the checkout", "checkout-country", "type", "Germany"),
-    ("the checkout", "place-order", "Space", "/confirmation"),
+    ("list", "add-to-cart-1", "Space", "/#add-to-cart-1"),
+    ("list", "cart-link", "Enter", "/cart"),
+    ("cart", "checkout-link", "Enter", "/checkout"),
+    ("checkout", "checkout-name", "type", "Jana Novak"),
+    ("checkout", "checkout-email", "type", "jana@example.com"),
+    ("checkout", "checkout-address", "type", "12 Example Street"),
+    ("checkout", "checkout-city", "type", "Berlin"),
+    ("checkout", "checkout-postcode", "type", "10115"),
+    ("checkout", "checkout-country", "type", "Germany"),
+    ("checkout", "place-order", "Space", "/confirmation"),
 )
 
 
@@ -141,14 +145,20 @@ def _reach(page: Page, testid: str) -> str | None:
         if stop.testid == testid:
             return None
         stops.append(stop)
+    if len(stops) == TAB_LIMIT:  # every press landed somewhere new: the limit ended the walk, not a return
+        return f"{TAB_LIMIT} presses of Tab did not come round to {testid}, going through {_names(stops)}"
     return f"Tab reaches {_names(stops)}, never {testid}"
 
 
 def _leave(page: Page, key: str, to: str) -> bool:
-    """Press the key on the focused control and wait for a page whose address ends with `to`; False when none comes."""
+    """Press the key on the focused control and wait for the shop's page at `to` (a path, with its fragment if any, on
+    the origin the browser is on); False when it does not come.
+    """
+    parts = urlsplit(page.url)
+    wanted = f"{parts.scheme}://{parts.netloc}{to}"
     page.keyboard.press(key)
     try:
-        page.wait_for_url(re.compile(re.escape(to) + "$"), timeout=PAGE_TIMEOUT)
+        page.wait_for_url(lambda url: url == wanted, timeout=PAGE_TIMEOUT)
     except PlaywrightTimeout:
         return False
     return True
@@ -164,18 +174,19 @@ def _path(url: str) -> str:
 def checkout_by_keyboard(page: Page, base_url: str) -> list[KeyFinding]:
     """Buy the first product with the keyboard alone: from the list, add it, go to the cart and on to the checkout,
     fill in the details and place the order. Tab reaches each control in turn, Enter follows links, Space presses
-    buttons, and the details are typed. The finding says where the journey stopped (2.1.1).
+    buttons, and the details are typed. The finding starts with the page the journey stopped on — `list`, `cart` or
+    `checkout`, as the registry names pages — then a colon and what happened there (2.1.1).
     """
     page.goto(f"{base_url}/")
     for where, testid, action, value in STEPS:
         if missed := _reach(page, testid):
-            return [_finding("checkout_by_keyboard", f"On {where}, {missed}")]
+            return [_finding("checkout_by_keyboard", f"{where}: {missed}")]
         if action == "type":
             page.keyboard.type(value)
             if not page.evaluate("document.activeElement.value"):
-                return [_finding("checkout_by_keyboard", f"On {where}, typing into {testid} leaves it empty")]
+                return [_finding("checkout_by_keyboard", f"{where}: typing into {testid} leaves it empty")]
         elif not _leave(page, action, value):
-            detail = f"On {where}, {action} on {testid} does not lead to {value}: the page stays at {_path(page.url)}"
+            detail = f"{where}: {action} on {testid} does not lead to {value}, the page stays at {_path(page.url)}"
             return [_finding("checkout_by_keyboard", detail)]
     return []
 
@@ -185,9 +196,11 @@ def focus_order(page: Page, url: str, expected: list[str]) -> list[KeyFinding]:
     controls in the order they are shown. A finding when Tab does not visit them in that order, one after another
     (2.4.3).
     """
+    expected = list(expected)
+    if not expected:
+        raise ValueError("expected must name at least one control")
     page.goto(url)
     observed = [stop.name for stop in _tabs(page) if stop.tag != "body"]
-    expected = list(expected)
     if any(observed[start : start + len(expected)] == expected for start in range(len(observed) - len(expected) + 1)):
         return []
     detail = (
@@ -197,16 +210,18 @@ def focus_order(page: Page, url: str, expected: list[str]) -> list[KeyFinding]:
     return [_finding("focus_order", detail)]
 
 
-def focus_visible(page: Page, url: str) -> list[KeyFinding]:
-    """Tab through the page at `url` and read how each element is drawn while it has focus: its computed
-    `outline-style`, `outline-width` and `box-shadow`. A finding for each element with no outline drawn and no shadow
-    cast (2.4.7).
+def focus_visible(page: Page, url: str | None = None) -> list[KeyFinding]:
+    """Tab through the page at `url` — or through the page as it stands, when no address is given — and read how each
+    element is drawn while it has focus: its computed `outline-style`, `outline-width` and `box-shadow`. A finding for
+    each element with no outline drawn and no shadow cast (2.4.7).
     """
-    page.goto(url)
+    if url is not None:
+        page.goto(url)
+    path = _path(page.url)
     return [
         _finding(
             "focus_visible",
-            f"On {_path(url)}, {stop.name} ({stop.tag}) shows no focus indicator: outline-style {stop.outline_style}, "
+            f"On {path}, {stop.name} ({stop.tag}) shows no focus indicator: outline-style {stop.outline_style}, "
             f"outline-width {stop.outline_width}, box-shadow {stop.box_shadow}",
         )
         for stop in _tabs(page)
@@ -240,7 +255,8 @@ def _dialog(page: Page) -> _Dialog:
 
 def _open_dialog(page: Page, url: str, check: str) -> KeyFinding | None:
     """From the product page at `url`, add the product with the keyboard and wait for the "Added to cart" dialog;
-    the finding when that cannot be done.
+    the finding when that cannot be done. The button is pressed with Enter, which a button answers as it does Space;
+    the journey presses its buttons with Space, so both keys are exercised across the checks.
     """
     page.goto(url)
     if missed := _reach(page, "add-to-cart"):
@@ -260,6 +276,8 @@ def dialog_escape(page: Page, url: str) -> list[KeyFinding]:
     if stuck := _open_dialog(page, url, "dialog_escape"):
         return [stuck]
     page.keyboard.press("Escape")
+    with suppress(PlaywrightTimeout):  # a dialog that hides when a transition ends is given that moment, bounded
+        page.get_by_test_id("added-dialog").wait_for(state="hidden", timeout=HIDE_TIMEOUT)
     dialog = _dialog(page)
     if dialog.open:
         return [_finding("dialog_escape", f"Escape leaves the dialog open, with focus on {dialog.focused}")]
