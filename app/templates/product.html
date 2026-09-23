@@ -24,6 +24,64 @@
 {% endblock %}
 {% block dialog %}
 {% if added %}
+  {# Violation keyboard-trap: Tab is held in the dialog, Escape does nothing, and its actions are divs. #}
+  {% if broken %}
+  <div class="dialog-backdrop" hidden>
+    <div class="dialog" id="added-dialog" role="dialog" aria-modal="true" aria-labelledby="added-title" aria-describedby="added-message" tabindex="-1" data-testid="added-dialog">
+      <h2 id="added-title">Added to cart</h2>
+      <p id="added-message">{{ product.name }} is in your cart. Quantity: {{ in_cart }}.</p>
+      <div class="dialog-actions">
+        <div class="button button-secondary" id="continue-shopping" data-testid="continue-shopping">Continue shopping</div>
+        <div class="button" id="go-to-cart" data-testid="go-to-cart">Go to cart</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      "use strict";
+
+      const dialog = document.getElementById("added-dialog");
+      const backdrop = dialog.parentElement;
+      const opener = document.getElementById("add-to-cart");
+      const rest = Array.from(document.body.children).filter((element) => element !== backdrop);
+
+      // Keep focus in the dialog while it is open.
+      function holdFocus(event) {
+        if (event.key === "Tab") {
+          event.preventDefault();
+          dialog.focus();
+        }
+      }
+
+      function close() {
+        document.removeEventListener("keydown", holdFocus);
+        rest.forEach((element) => {
+          element.inert = false;
+        });
+        backdrop.hidden = true;
+        opener.focus();
+      }
+
+      document.getElementById("continue-shopping").addEventListener("click", close);
+      document.getElementById("go-to-cart").addEventListener("click", () => {
+        window.location.href = "/cart";
+      });
+      window.addEventListener("pageshow", (event) => {
+        if (event.persisted && !backdrop.hidden) {
+          close();
+        }
+      });
+
+      backdrop.hidden = false;
+      rest.forEach((element) => {
+        element.inert = true;
+      });
+      document.addEventListener("keydown", holdFocus);
+      history.replaceState(null, "", window.location.pathname);
+      dialog.focus();
+    })();
+  </script>
+  {% else %}
   {# Rendered hidden; shop.js opens it, moves focus into it and keeps it there until it is closed. #}
   <div class="dialog-backdrop" hidden>
     <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="added-title" aria-describedby="added-message" data-dialog data-opener="add-to-cart" data-testid="added-dialog">
@@ -35,5 +93,6 @@
       </div>
     </div>
   </div>
+  {% endif %}
 {% endif %}
 {% endblock %}

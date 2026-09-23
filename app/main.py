@@ -3,7 +3,7 @@
 `A11Y_MODE` says how the pages are rendered and is read once, when the app is
 created: `fixed` (the default) or `broken`. Templates see it as the boolean
 `broken`. Any other value stops the shop from starting, with a message naming
-the two it accepts.
+the two it accepts. What `broken` changes is listed in `app.violations`.
 
 A browser's cart is found through a signed cookie that holds only the cart's
 id; the cart itself is kept in memory by `app.cart.CartStore`.

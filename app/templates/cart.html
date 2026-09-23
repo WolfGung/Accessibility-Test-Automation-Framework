@@ -1,4 +1,8 @@
 {% extends "base.html" %}
+{# The remove control's bin icon: a picture only, so the control around it is what carries the name. #}
+{% macro bin_icon() -%}
+<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+{%- endmacro %}
 {% block title %}Your cart{% endblock %}
 {% block content %}
     <h1>Your cart</h1>
@@ -18,11 +22,12 @@
         <p class="cart-line-subtotal">Subtotal: <span data-testid="line-subtotal-{{ line.product.id }}">{{ line.subtotal_cents|price }}</span></p>
         <form class="cart-line-remove" method="post" action="/cart/remove">
           <input type="hidden" name="product_id" value="{{ line.product.id }}">
-          <button type="submit" class="icon-button" aria-label="Remove {{ line.product.name }}" data-testid="remove-{{ line.product.id }}">
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
-              <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
+          {# Violation div-button: a div around the icon, with no role and no name (it does take focus and keys). #}
+          {% if broken %}
+          <div class="icon-button remove" tabindex="0" onclick="this.closest('form').submit()" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); this.closest('form').submit(); }" data-testid="remove-{{ line.product.id }}">{{ bin_icon() }}</div>
+          {% else %}
+          <button type="submit" class="icon-button" aria-label="Remove {{ line.product.name }}" data-testid="remove-{{ line.product.id }}">{{ bin_icon() }}</button>
+          {% endif %}
         </form>
       </li>
       {% endfor %}

@@ -6,10 +6,7 @@ HTML parser, through `data-testid` and `id` attributes rather than layout.
 """
 from __future__ import annotations
 
-import re
 from collections.abc import AsyncIterator
-from dataclasses import dataclass, field
-from html.parser import HTMLParser
 from pathlib import Path
 
 import httpx
@@ -19,6 +16,7 @@ from fastapi import FastAPI
 from app import checkout
 from app.catalog import PRODUCTS, format_price
 from app.main import create_app
+from tests.helpers import client_for, page_of, rule_in
 
 pytestmark = pytest.mark.anyio
 
@@ -33,118 +31,15 @@ VALID_DETAILS = {
 
 TOTE_BAG, MUG, NOTEBOOK = PRODUCTS[:3]
 
-
-# --- reading pages ---------------------------------------------------------
-
-VOID_ELEMENTS = frozenset(
-    {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
-)
-
-
-@dataclass
-class Element:
-    tag: str
-    attrs: dict[str, str | None]
-    raw_text: str = field(default="", repr=False)
-
-    @property
-    def text(self) -> str:
-        """The element's text with its descendants', whitespace collapsed."""
-        return " ".join(self.raw_text.split())
-
-
-class Page(HTMLParser):
-    """Every element of a page, in document order, with its attributes and text."""
-
-    def __init__(self, html: str) -> None:
-        super().__init__(convert_charrefs=True)
-        self.elements: list[Element] = []
-        self._open: list[Element] = []
-        self.feed(html)
-        self.close()
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        element = Element(tag, dict(attrs))
-        self.elements.append(element)
-        if tag not in VOID_ELEMENTS:
-            self._open.append(element)
-
-    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        self.elements.append(Element(tag, dict(attrs)))
-
-    def handle_endtag(self, tag: str) -> None:
-        for index in range(len(self._open) - 1, -1, -1):
-            if self._open[index].tag == tag:
-                del self._open[index:]
-                return
-
-    def handle_data(self, data: str) -> None:
-        for element in self._open:
-            element.raw_text += data
-
-    def all(self, tag: str | None = None, **attrs: str) -> list[Element]:
-        """Elements with this tag (any tag when None) whose attributes have these values.
-
-        Attribute names are written the Python way: `data_testid="x"` matches
-        `data-testid="x"`, and `for_="x"` matches `for="x"`.
-        """
-        wanted = {name.rstrip("_").replace("_", "-"): value for name, value in attrs.items()}
-        return [
-            element
-            for element in self.elements
-            if (tag is None or element.tag == tag)
-            and all(element.attrs.get(name) == value for name, value in wanted.items())
-        ]
-
-    def one(self, tag: str | None = None, **attrs: str) -> Element:
-        found = self.all(tag, **attrs)
-        assert len(found) == 1, f"expected one {tag or 'element'} with {attrs}, found {len(found)}"
-        return found[0]
-
-    def testid(self, value: str) -> Element:
-        return self.one(data_testid=value)
-
-    def has_testid(self, value: str) -> bool:
-        return bool(self.all(data_testid=value))
-
-    @property
-    def heading(self) -> str:
-        return self.one("h1").text
-
-    @property
-    def title(self) -> str:
-        return self.one("title").text
-
-
-def page_of(response: httpx.Response) -> Page:
-    return Page(response.text)
-
-
 STYLESHEET = Path(__file__).resolve().parents[1] / "app" / "static" / "shop.css"
 
 
 def css_rule(selectors: str) -> dict[str, str]:
     """The declarations of the stylesheet's top-level rule for exactly these selectors."""
-    css = re.sub(r"/\*.*?\*/", "", STYLESHEET.read_text(encoding="utf-8"), flags=re.S)
-    css = re.sub(r"@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", "", css)  # rules inside @media are not top-level
-    wanted = [part.strip() for part in selectors.split(",")]
-    for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", css):
-        if [part.strip() for part in match.group(1).split(",")] == wanted:
-            pairs = (declaration.split(":", 1) for declaration in match.group(2).split(";") if ":" in declaration)
-            return {name.strip(): value.strip() for name, value in pairs}
-    raise AssertionError(f"no top-level rule for {selectors!r} in {STYLESHEET.name}")
+    return rule_in(STYLESHEET.read_text(encoding="utf-8"), selectors)
 
 
 # --- fixtures and steps ----------------------------------------------------
-
-
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
-
-
-def client_for(app: FastAPI) -> httpx.AsyncClient:
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://shop.test")
 
 
 @pytest.fixture

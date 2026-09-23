@@ -1,28 +1,44 @@
 {% extends "base.html" %}
+{# Violation error-identification: an error is only a red border, never words. #}
+{% if broken %}
+{% set errors_in_words = {} %}
+{% else %}
+{% set errors_in_words = errors %}
+{% endif %}
+{# Violation focus-order: tabindex 3, 1 and 2 on three address fields. #}
+{% if broken %}
+{% set tab_order = {"address": 3, "city": 1, "postcode": 2} %}
+{% else %}
+{% set tab_order = {} %}
+{% endif %}
 {# Every field reports an error the same way, through these three: the error
    text next to the field, the link from the field to that text, and a marked
-   border around the field. #}
+   border around the field. The summary at the top of the form and the title
+   say it again. #}
 {% macro field_class(field) -%}
 field{% if field in errors %} field-with-error{% endif %}
 {%- endmacro %}
 {% macro error_message(field) -%}
-{% if field in errors %}<p class="field-error" id="{{ field }}-error" data-testid="error-{{ field }}"><span class="visually-hidden">Error: </span>{{ errors[field] }}</p>{% endif %}
+{% if field in errors_in_words %}<p class="field-error" id="{{ field }}-error" data-testid="error-{{ field }}"><span class="visually-hidden">Error: </span>{{ errors_in_words[field] }}</p>{% endif %}
 {%- endmacro %}
 {% macro error_attributes(field) -%}
-{% if field in errors %} aria-invalid="true" aria-describedby="{{ field }}-error"{% endif %}
+{% if field in errors_in_words %} aria-invalid="true" aria-describedby="{{ field }}-error"{% endif %}
 {%- endmacro %}
-{% block title %}{% if errors %}Error: {% endif %}Checkout{% endblock %}
+{% macro tab_stop(field) -%}
+{% if field in tab_order %} tabindex="{{ tab_order[field] }}"{% endif %}
+{%- endmacro %}
+{% block title %}{% if errors_in_words %}Error: {% endif %}Checkout{% endblock %}
 {% block content %}
     <h1>Checkout</h1>
     <div class="checkout">
       <form class="checkout-form" method="post" action="/checkout" novalidate data-testid="checkout-form">
-        {% if errors %}
+        {% if errors_in_words %}
         {# Focus lands here when the page comes back with errors, so the list is the first thing read.
            A named group, so that moving focus to it announces "There is a problem" before the list. #}
         <div class="error-summary" role="group" aria-labelledby="error-summary-title" tabindex="-1" autofocus data-testid="error-summary">
           <h2 id="error-summary-title">There is a problem</h2>
           <ul>
-            {% for field, message in errors.items() %}
+            {% for field, message in errors_in_words.items() %}
             <li><a href="#{{ field }}" data-testid="error-link-{{ field }}">{{ message }}</a></li>
             {% endfor %}
           </ul>
@@ -35,26 +51,32 @@ field{% if field in errors %} field-with-error{% endif %}
           <input id="name" name="name" type="text" autocomplete="name" required value="{{ values['name'] }}" data-testid="checkout-name"{{ error_attributes("name") }}>
         </div>
         <div class="{{ field_class('email') }}">
+          {# Violation field-label: a placeholder instead of a label. #}
+          {% if broken %}
+          {{ error_message("email") }}
+          <input id="email" name="email" type="email" autocomplete="email" spellcheck="false" required placeholder="Email address" value="{{ values['email'] }}" data-testid="checkout-email"{{ error_attributes("email") }}>
+          {% else %}
           <label for="email">Email address</label>
           {{ error_message("email") }}
           <input id="email" name="email" type="email" autocomplete="email" spellcheck="false" required value="{{ values['email'] }}" data-testid="checkout-email"{{ error_attributes("email") }}>
+          {% endif %}
         </div>
         <fieldset>
           <legend>Delivery address</legend>
           <div class="{{ field_class('address') }}">
             <label for="address">Street address</label>
             {{ error_message("address") }}
-            <input id="address" name="address" type="text" autocomplete="address-line1" required value="{{ values['address'] }}" data-testid="checkout-address"{{ error_attributes("address") }}>
+            <input id="address" name="address" type="text" autocomplete="address-line1" required value="{{ values['address'] }}" data-testid="checkout-address"{{ tab_stop("address") }}{{ error_attributes("address") }}>
           </div>
           <div class="{{ field_class('city') }}">
             <label for="city">Town or city</label>
             {{ error_message("city") }}
-            <input id="city" name="city" type="text" autocomplete="address-level2" required value="{{ values['city'] }}" data-testid="checkout-city"{{ error_attributes("city") }}>
+            <input id="city" name="city" type="text" autocomplete="address-level2" required value="{{ values['city'] }}" data-testid="checkout-city"{{ tab_stop("city") }}{{ error_attributes("city") }}>
           </div>
           <div class="{{ field_class('postcode') }}">
             <label for="postcode">Postal code</label>
             {{ error_message("postcode") }}
-            <input class="input-postcode" id="postcode" name="postcode" type="text" autocomplete="postal-code" required value="{{ values['postcode'] }}" data-testid="checkout-postcode"{{ error_attributes("postcode") }}>
+            <input class="input-postcode" id="postcode" name="postcode" type="text" autocomplete="postal-code" required value="{{ values['postcode'] }}" data-testid="checkout-postcode"{{ tab_stop("postcode") }}{{ error_attributes("postcode") }}>
           </div>
           <div class="{{ field_class('country') }}">
             <label for="country">Country</label>

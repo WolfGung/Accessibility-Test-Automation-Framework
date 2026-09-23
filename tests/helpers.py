@@ -1,0 +1,142 @@
+"""What the test modules share: a client for a shop in this process, and a reader for the pages it sends.
+
+Pages are read with the standard library's HTML parser, through `data-testid`
+and `id` attributes rather than layout.
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from html.parser import HTMLParser
+
+import httpx
+from fastapi import FastAPI
+
+
+def client_for(app: FastAPI) -> httpx.AsyncClient:
+    """A client for the shop in this process that keeps its cookies, like one browser would."""
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://shop.test")
+
+
+# --- reading pages ---------------------------------------------------------
+
+VOID_ELEMENTS = frozenset(
+    {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+)
+
+
+@dataclass(eq=False)  # an element is itself, not any element that looks the same
+class Element:
+    tag: str
+    attrs: dict[str, str | None]
+    parent: Element | None = field(default=None, repr=False)
+    raw_text: str = field(default="", repr=False)
+
+    @property
+    def text(self) -> str:
+        """The element's text with its descendants', whitespace collapsed."""
+        return " ".join(self.raw_text.split())
+
+    @property
+    def classes(self) -> list[str]:
+        return (self.attrs.get("class") or "").split()
+
+    @property
+    def ancestors(self) -> list[Element]:
+        """The elements this one sits in, nearest first."""
+        found: list[Element] = []
+        element = self.parent
+        while element is not None:
+            found.append(element)
+            element = element.parent
+        return found
+
+
+class Page(HTMLParser):
+    """Every element of a page, in document order, with its attributes, its text and where it sits."""
+
+    def __init__(self, html: str) -> None:
+        super().__init__(convert_charrefs=True)
+        self.elements: list[Element] = []
+        self._open: list[Element] = []
+        self.feed(html)
+        self.close()
+
+    def _start(self, tag: str, attrs: list[tuple[str, str | None]]) -> Element:
+        element = Element(tag, dict(attrs), parent=self._open[-1] if self._open else None)
+        self.elements.append(element)
+        return element
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        element = self._start(tag, attrs)
+        if tag not in VOID_ELEMENTS:
+            self._open.append(element)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._start(tag, attrs)
+
+    def handle_endtag(self, tag: str) -> None:
+        for index in range(len(self._open) - 1, -1, -1):
+            if self._open[index].tag == tag:
+                del self._open[index:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        for element in self._open:
+            element.raw_text += data
+
+    def all(self, tag: str | None = None, **attrs: str) -> list[Element]:
+        """Elements with this tag (any tag when None) whose attributes have these values.
+
+        Attribute names are written the Python way: `data_testid="x"` matches
+        `data-testid="x"`, and `for_="x"` matches `for="x"`.
+        """
+        wanted = {name.rstrip("_").replace("_", "-"): value for name, value in attrs.items()}
+        return [
+            element
+            for element in self.elements
+            if (tag is None or element.tag == tag)
+            and all(element.attrs.get(name) == value for name, value in wanted.items())
+        ]
+
+    def one(self, tag: str | None = None, **attrs: str) -> Element:
+        found = self.all(tag, **attrs)
+        assert len(found) == 1, f"expected one {tag or 'element'} with {attrs}, found {len(found)}"
+        return found[0]
+
+    def testid(self, value: str) -> Element:
+        return self.one(data_testid=value)
+
+    def has_testid(self, value: str) -> bool:
+        return bool(self.all(data_testid=value))
+
+    def within(self, container: Element) -> list[Element]:
+        """The elements inside this one, in document order."""
+        return [element for element in self.elements if any(outer is container for outer in element.ancestors)]
+
+    @property
+    def heading(self) -> str:
+        return self.one("h1").text
+
+    @property
+    def title(self) -> str:
+        return self.one("title").text
+
+
+def page_of(response: httpx.Response) -> Page:
+    return Page(response.text)
+
+
+# --- reading styles --------------------------------------------------------
+
+
+def rule_in(css: str, selectors: str) -> dict[str, str]:
+    """The declarations of the top-level rule for exactly these selectors in this CSS."""
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    css = re.sub(r"@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", "", css)  # rules inside @media are not top-level
+    wanted = [part.strip() for part in selectors.split(",")]
+    for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", css):
+        if [part.strip() for part in match.group(1).split(",")] == wanted:
+            pairs = (declaration.split(":", 1) for declaration in match.group(2).split(";") if ":" in declaration)
+            return {name.strip(): value.strip() for name, value in pairs}
+    raise AssertionError(f"no top-level rule for {selectors!r}")

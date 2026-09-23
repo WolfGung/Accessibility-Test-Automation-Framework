@@ -6,15 +6,25 @@
       {% for product in products %}
       {% set quantity = in_cart.get(product.id, 0) %}
       <li class="product-card" id="product-{{ product.id }}">
+        {# Violation img-alt: no alt attribute. #}
+        {% if broken %}
+        <img class="product-image" src="/static/img/{{ product.image }}" width="240" height="180" data-testid="product-image-{{ product.id }}">
+        {% else %}
         <img class="product-image" src="/static/img/{{ product.image }}" alt="{{ product.alt }}" width="240" height="180" data-testid="product-image-{{ product.id }}">
+        {% endif %}
         <h2 class="product-name"><a href="/product/{{ product.id }}" data-testid="product-link-{{ product.id }}">{{ product.name }}</a></h2>
         <p class="price" data-testid="product-price-{{ product.id }}">{{ product.price_cents|price }}</p>
         <form class="product-add" method="post" action="/cart/add">
           <input type="hidden" name="product_id" value="{{ product.id }}">
           <input type="hidden" name="quantity" value="1">
           <input type="hidden" name="return_to" value="list">
+          {# Violation mouse-only: a div with a click handler; no tabindex, no key handler. #}
+          {% if broken %}
+          <div class="button add" id="add-to-cart-{{ product.id }}" onclick="this.closest('form').submit()" data-testid="add-to-cart-{{ product.id }}"{% if quantity %} aria-describedby="in-cart-{{ product.id }}"{% endif %}>Add to cart<span class="visually-hidden">: {{ product.name }}</span></div>
+          {% else %}
           {# After an add the page comes back as /#add-to-cart-N and the browser focuses this button; its description then says how many are in the cart. #}
           <button type="submit" class="button" id="add-to-cart-{{ product.id }}" data-testid="add-to-cart-{{ product.id }}"{% if quantity %} aria-describedby="in-cart-{{ product.id }}"{% endif %}>Add to cart<span class="visually-hidden">: {{ product.name }}</span></button>
+          {% endif %}
         </form>
         {% if quantity %}
         <p class="in-cart" id="in-cart-{{ product.id }}" data-testid="in-cart-{{ product.id }}">In your cart: {{ quantity }}</p>
