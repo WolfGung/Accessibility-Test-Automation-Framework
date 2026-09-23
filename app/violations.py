@@ -33,7 +33,7 @@ VIOLATIONS: tuple[Violation, ...] = (
         criteria=("1.1.1",),
         page="list",
         where="Each product card's `img`, which has no `alt` attribute",
-        detected_by="unknown",
+        detected_by="axe",
     ),
     Violation(
         id="field-label",
@@ -44,7 +44,7 @@ VIOLATIONS: tuple[Violation, ...] = (
             'The email address field: "Email address" stands above it as plain text that nothing ties to it; '
             "no `label`, no `aria-label`, no `aria-labelledby`, no `title` and no `placeholder`"
         ),
-        detected_by="unknown",
+        detected_by="axe",
     ),
     Violation(
         id="contrast",
@@ -55,7 +55,7 @@ VIOLATIONS: tuple[Violation, ...] = (
             "The price on the product page, `#b8bec6` on `#ffffff`, from a rule on `.product-price`; "
             "the list's prices keep the colour of `.price`"
         ),
-        detected_by="unknown",
+        detected_by="axe",
     ),
     Violation(
         id="mouse-only",
@@ -98,7 +98,7 @@ VIOLATIONS: tuple[Violation, ...] = (
         criteria=("3.1.1",),
         page="every page",
         where="The `html` element, which has no `lang` attribute",
-        detected_by="unknown",
+        detected_by="axe",
     ),
     Violation(
         id="error-identification",

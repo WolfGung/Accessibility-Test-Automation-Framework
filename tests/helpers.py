@@ -1,16 +1,24 @@
-"""What the test modules share: a client for a shop in this process, a step a shopper takes, and a reader for the pages.
+"""What the test modules share: a client for a shop in this process, a step a shopper takes, a reader for the pages,
+and a way to put a check's findings on the report.
 
 Pages are read with the standard library's HTML parser, through `data-testid`
 and `id` attributes rather than layout.
 """
 from __future__ import annotations
 
+import dataclasses
+import json
 import re
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
+from typing import TYPE_CHECKING
 
+import allure
 import httpx
 from fastapi import FastAPI
+
+if TYPE_CHECKING:
+    from a11y.axe import Finding
 
 
 def client_for(app: FastAPI) -> httpx.AsyncClient:
@@ -162,3 +170,12 @@ def rule_in(css: str, selectors: str) -> dict[str, str]:
             pairs = (declaration.split(":", 1) for declaration in match.group(2).split(";") if ":" in declaration)
             return {name.strip(): value.strip() for name, value in pairs}
     raise AssertionError(f"no top-level rule for {selectors!r}")
+
+
+# --- the report ------------------------------------------------------------
+
+
+def attach_findings(name: str, findings: list[Finding]) -> None:
+    """Put a check's findings on the Allure report as a JSON list: rule, impact, criteria, selector, help and link."""
+    body = json.dumps([dataclasses.asdict(finding) for finding in findings], indent=2)
+    allure.attach(body, name=name, attachment_type=allure.attachment_type.JSON)
