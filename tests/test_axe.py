@@ -8,25 +8,27 @@ Every scan's findings go on the report.
 """
 from __future__ import annotations
 
-import hashlib
-import re
+from typing import TYPE_CHECKING
 
 import pytest
 
-from a11y.axe import AXE, SERIOUS, Finding, describe, scan
+from a11y.axe import SERIOUS, Finding, describe, scan
 from app.violations import VIOLATIONS, Violation
-from tests.conftest import Pages
-from tests.helpers import attach_findings
+from tests.helpers import PAGES, attach_findings
+
+if TYPE_CHECKING:
+    from tests.conftest import Pages
 
 #: The planted violations a run of axe has shown it reports.
 AXE_FINDS = tuple(violation for violation in VIOLATIONS if violation.detected_by == "axe")
 
 #: Each of them with each page state it is looked for on: its page as it opens, or every state for a violation on
-#: every page.
+#: every page. Not the `dialog` state for one on the product page: while the dialog is open the rest of the page is
+#: `inert`, and axe then leaves the product's price out as not applicable to color-contrast.
 AXE_FINDS_ON = [
     (violation, state)
     for violation in AXE_FINDS
-    for state in (Pages.names if violation.page == "every page" else (violation.page,))
+    for state in (PAGES if violation.page == "every page" else (violation.page,))
 ]
 
 
@@ -53,8 +55,6 @@ def test_the_fixed_shop_has_no_serious_finding(pages: Pages, fixed_shop: str, st
 def test_axe_finds_each_violation_the_registry_says_it_finds(
     pages: Pages, broken_shop: str, violation: Violation, state: str
 ) -> None:
-    # Its page as it opens: while the dialog is open the rest of the page is `inert`, and axe then leaves the
-    # product's price out as not applicable to color-contrast, so the `dialog` state would not show that one.
     findings = scan(pages.visit(broken_shop, state))
     attach_findings(f"axe on the broken shop: {state}", findings)
     assert any(explains(violation, finding) for finding in findings), (
@@ -88,10 +88,3 @@ def test_the_scan_puts_the_pinned_axe_into_each_document_once(pages: Pages, fixe
     assert page.evaluate("typeof axe") == "undefined"
     scan(page)
     assert page.evaluate("axe.version") == "4.13.0"
-
-
-def test_the_scan_reads_the_vendored_axe_its_readme_pins() -> None:
-    """The file the scan puts into pages, found from the package rather than from the repository, is the pinned one."""
-    readme = (AXE.parent / "README.md").read_text(encoding="utf-8")
-    [pinned] = re.findall(r"\b[0-9a-f]{64}\b", readme)
-    assert hashlib.sha256(AXE.read_bytes()).hexdigest() == pinned

@@ -27,12 +27,11 @@ dev = [
 ]
 
 [tool.setuptools]
-# `vendor/` is shipped next to `a11y/`, where `a11y/axe.py` looks for it in a checkout and once installed alike.
-packages = ["app", "a11y", "vendor"]
+packages = ["app", "a11y"]
 
 [tool.setuptools.package-data]
 app = ["templates/*.html", "static/*.css", "static/*.js", "static/img/*.svg"]
-vendor = ["axe.min.js", "axe-core-LICENSE.txt", "README.md"]
+a11y = ["vendor/axe.min.js", "vendor/axe-core-LICENSE.txt", "vendor/README.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -19,22 +19,9 @@ from playwright.sync_api import Page, expect
 
 from app.catalog import PRODUCTS
 from app.main import MODES, create_app
+from tests.helpers import PAGE_OF, PAGES
 
 MUG, NOTEBOOK = PRODUCTS[1], PRODUCTS[2]
-
-#: The page states the browser checks visit: every page, and the two states that change one (the product page
-#: with its dialog open, the checkout after an empty submit).
-PAGES = ("list", "product", "dialog", "cart", "checkout", "checkout-errors")
-
-#: The page of the shop each state shows, as the registry of violations names pages.
-PAGE_OF = {
-    "list": "list",
-    "product": "product",
-    "dialog": "product",
-    "cart": "cart",
-    "checkout": "checkout",
-    "checkout-errors": "checkout",
-}
 
 
 # --- the shops -------------------------------------------------------------
@@ -52,8 +39,14 @@ def serve(mode: str) -> Iterator[str]:
     thread.start()
     deadline = time.monotonic() + 10
     while not server.started:
-        assert thread.is_alive() and time.monotonic() < deadline, f"the {mode} shop did not start on port {port}"
-        time.sleep(0.01)
+        alive = thread.is_alive()
+        if alive and time.monotonic() < deadline:
+            time.sleep(0.01)
+            continue
+        server.should_exit = True  # should the thread still be on its way up
+        listener.close()
+        what = "did not start within 10 s" if alive else "exited before it was up"
+        raise AssertionError(f"the {mode} shop on port {port} {what}")
     yield f"http://127.0.0.1:{port}"
     server.should_exit = True
     thread.join(timeout=10)
@@ -89,8 +82,6 @@ def shop(mode: str, fixed_shop: str, broken_shop: str) -> str:
 
 class Pages:
     """A browser page, and the steps a shopper takes on it to reach each page state of a shop."""
-
-    names = PAGES
 
     def __init__(self, page: Page) -> None:
         self.page = page

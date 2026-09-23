@@ -1,5 +1,5 @@
-"""What the test modules share: a client for a running shop, a step a shopper takes, a reader for the pages, and a
-way to put a check's findings on the report.
+"""What the test modules share: a client for a running shop, the page states the checks visit, a step a shopper
+takes, a reader for the pages, and a way to put a check's findings on the report.
 
 Pages are read with the standard library's HTML parser, through `data-testid`
 and `id` attributes rather than layout.
@@ -26,6 +26,23 @@ def client_for(shop: str) -> httpx.Client:
     Redirects are not followed: a test sees each 303 and its `Location` as the shop sent them.
     """
     return httpx.Client(base_url=shop, follow_redirects=False)
+
+
+# --- the page states -------------------------------------------------------
+
+#: The page states the browser checks visit: every page, and the two states that change one (the product page
+#: with its dialog open, the checkout after an empty submit).
+PAGES = ("list", "product", "dialog", "cart", "checkout", "checkout-errors")
+
+#: The page of the shop each state shows, as the registry of violations names pages.
+PAGE_OF = {
+    "list": "list",
+    "product": "product",
+    "dialog": "product",
+    "cart": "cart",
+    "checkout": "checkout",
+    "checkout-errors": "checkout",
+}
 
 
 # --- a step a shopper takes ------------------------------------------------

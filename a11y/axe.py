@@ -1,4 +1,4 @@
-"""The automated scan: axe-core, pinned in `vendor/`, run in the browser on the page it is given.
+"""The automated scan: axe-core, pinned in `a11y/vendor/`, run in the browser on the page it is given.
 
 `scan` puts the vendored script into the page once per document and runs the
 rules tagged for WCAG 2.1 level A and AA, nothing more: no best practices, no
@@ -15,7 +15,8 @@ from playwright.sync_api import Page
 
 from a11y.wcag import criteria_from_tags
 
-AXE = Path(__file__).resolve().parents[1] / "vendor" / "axe.min.js"
+#: The vendored scanner, shipped next to this module: one path for a checkout and an installed package alike.
+AXE = Path(__file__).parent / "vendor" / "axe.min.js"
 
 #: The rules that run: those tagged for WCAG 2.1 level A and AA (the criteria of 2.0 carry the 2.0 tags).
 TAGS = ("wcag2a", "wcag2aa", "wcag21a", "wcag21aa")
