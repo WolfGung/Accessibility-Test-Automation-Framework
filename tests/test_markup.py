@@ -216,6 +216,15 @@ def test_the_email_field_has_a_label_only_in_the_fixed_mode(client: httpx.Client
         # The words are still shown above the field, as plain text that nothing ties to it.
         assert inside == [("span", "Email address"), ("input", "")]
         assert page.within(wrapper)[0].classes == ["field-text"]
+        # Drawn the way a label is, by the one rule that styles both: nothing tells the words from a label by eye.
+        stylesheet = (APP / "static" / "shop.css").read_text(encoding="utf-8")
+        assert rule_in(stylesheet, ".field label, .field .field-text") == {
+            "display": "block",
+            "margin-bottom": "0.25rem",
+            "font-weight": "600",
+        }
+        with pytest.raises(AssertionError, match="no top-level rule"):
+            rule_in(stylesheet, ".field .field-text")  # no rule of its own that could drift from the label's
     else:
         assert page.one("label", for_="email").text == "Email address"
         assert inside == [("label", "Email address"), ("input", "")]

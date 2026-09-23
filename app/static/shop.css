@@ -228,14 +228,10 @@ main {
   margin-bottom: 1.25rem;
 }
 
-.field label {
-  display: block;
-  margin-bottom: 0.25rem;
-  font-weight: 600;
-}
-
-/* Text set above a field the way its label is, without being one: the
-   checkout in the broken mode shows the email field's name this way. */
+/* A field's label; and text set above a field the way its label is, without
+   being one, which is how the checkout in the broken mode shows the email
+   field's name. One rule, so that nothing tells the two apart by eye. */
+.field label,
 .field .field-text {
   display: block;
   margin-bottom: 0.25rem;

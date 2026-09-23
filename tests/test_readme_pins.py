@@ -255,8 +255,12 @@ def test_the_docker_files_are_what_the_readme_says() -> None:
     assert "127.0.0.1:8000:8000" in compose, "compose: the shop on http://127.0.0.1:8000"
     assert "mcr.microsoft.com/playwright/python:" in compose, "compose: the tests on Playwright's Python image"
     assert "[dev]" in compose, "compose: the tests install the dev extra"
-    if "dockerfile_inline" in compose:
-        assert "Compose 2.17" in TEXT, "README: the tests service's inline Dockerfile takes Compose 2.17 or newer"
+    # The sentence about Compose 2.17 is there if and only if the tests service's Dockerfile is written inside the
+    # compose file: `dockerfile_inline` is what takes that version, and a README that keeps the sentence after the
+    # Dockerfile moves out of the compose file is as wrong as one that lacks it while it is there.
+    assert ("dockerfile_inline" in compose) == ("Compose 2.17" in TEXT), (
+        "README: the tests service's inline Dockerfile takes Compose 2.17 or newer; say so exactly when it is inline"
+    )
 
 
 # --- the words ---------------------------------------------------------------
