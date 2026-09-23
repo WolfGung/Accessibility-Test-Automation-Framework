@@ -9,6 +9,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import TYPE_CHECKING
@@ -18,6 +19,7 @@ import httpx
 
 if TYPE_CHECKING:
     from a11y.axe import Finding
+    from a11y.keyboard import KeyFinding
 
 
 def client_for(shop: str) -> httpx.Client:
@@ -192,7 +194,7 @@ def rule_in(css: str, selectors: str) -> dict[str, str]:
 # --- the report ------------------------------------------------------------
 
 
-def attach_findings(name: str, findings: list[Finding]) -> None:
-    """Put a check's findings on the Allure report as a JSON list: rule, impact, criteria, selector, help and link."""
+def attach_findings(name: str, findings: Sequence[Finding | KeyFinding]) -> None:
+    """Put a check's findings on the Allure report as a JSON list, one object per finding with all of its fields."""
     body = json.dumps([dataclasses.asdict(finding) for finding in findings], indent=2)
     allure.attach(body, name=name, attachment_type=allure.attachment_type.JSON)

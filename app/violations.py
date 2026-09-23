@@ -63,7 +63,7 @@ VIOLATIONS: tuple[Violation, ...] = (
         criteria=("2.1.1",),
         page="list",
         where='Each card\'s "Add to cart": a `div` with a click handler, no `tabindex` and no key handler',
-        detected_by="unknown",
+        detected_by="keyboard",
     ),
     Violation(
         id="keyboard-trap",
@@ -74,7 +74,7 @@ VIOLATIONS: tuple[Violation, ...] = (
             "The dialog after an add: focus moves into it and Tab keeps it there, Escape does nothing, "
             "and both of its actions are `div`s with click handlers"
         ),
-        detected_by="unknown",
+        detected_by="keyboard",
     ),
     Violation(
         id="focus-order",
@@ -82,7 +82,7 @@ VIOLATIONS: tuple[Violation, ...] = (
         criteria=("2.4.3",),
         page="checkout",
         where="Street address, Town or city and Postal code, which carry `tabindex` 3, 1 and 2",
-        detected_by="unknown",
+        detected_by="keyboard",
     ),
     Violation(
         id="focus-visible",
@@ -90,7 +90,7 @@ VIOLATIONS: tuple[Violation, ...] = (
         criteria=("2.4.7",),
         page="every page",
         where="All links and buttons: `a:focus, button:focus { outline: none; }`, with nothing in its place",
-        detected_by="unknown",
+        detected_by="keyboard",
     ),
     Violation(
         id="page-lang",
@@ -109,7 +109,7 @@ VIOLATIONS: tuple[Violation, ...] = (
             "Each field in error after a submit: no error text, no `aria-invalid`, no `aria-describedby`, "
             'no error summary and no "Error:" in the title'
         ),
-        detected_by="unknown",
+        detected_by="manual",
     ),
     Violation(
         id="div-button",
@@ -120,6 +120,6 @@ VIOLATIONS: tuple[Violation, ...] = (
             "Each line's remove control: a `div` holding only an icon that is hidden from assistive technology; "
             "it takes focus and answers Enter and Space"
         ),
-        detected_by="unknown",
+        detected_by="manual",
     ),
 )
