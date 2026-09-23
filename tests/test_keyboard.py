@@ -6,7 +6,8 @@ fixed shop every check comes back empty. On the broken shop each check reports
 the planted violation the registry says it reports, on that violation's page,
 and nothing a keyboard entry of the registry does not explain: so
 `detected_by="keyboard"` in `app.violations` stays what a run shows. Every
-check's findings go on the report.
+check's findings go on the report and, at the end of a complete run, into the
+results file.
 """
 from __future__ import annotations
 
@@ -28,8 +29,10 @@ from a11y.keyboard import (
 )
 from app import checkout
 from app.catalog import PRODUCTS
+from app.main import MODES
 from app.violations import VIOLATIONS, Violation
 from tests.helpers import PAGE_OF, attach_findings
+from tools.report import Key
 
 if TYPE_CHECKING:
     from tests.conftest import Pages
@@ -100,6 +103,9 @@ RUNS = (
     Run("dialog_trap", "product", lambda pages, shop: dialog_trap(pages.page, f"{shop}/product/{MUG.id}")),
 )
 
+#: What a complete run of this module records for the results file: every run, on both shops.
+EXPECTED_RECORDS = frozenset(Key.of(mode, run.state, run.check) for mode in MODES for run in RUNS)
+
 #: Each keyboard-detected violation with each run that is to report it: a run on its page whose check tests one of
 #: its criteria, where a plant can show.
 PREDICTED = [
@@ -134,7 +140,7 @@ def lines(findings: list[KeyFinding]) -> str:
 @pytest.mark.parametrize("run", RUNS, ids=[run.id for run in RUNS])
 def test_the_fixed_shop_passes_every_check(pages: Pages, fixed_shop: str, run: Run) -> None:
     findings = run(pages, fixed_shop)
-    attach_findings(f"{run.check} on the fixed shop: {run.state}", findings)
+    attach_findings(run.check, "fixed", run.state, findings)
     assert findings == [], f"{run.check} reports on the fixed shop's {run.state}:\n{lines(findings)}"
 
 
@@ -143,7 +149,7 @@ def test_the_checks_find_each_violation_the_registry_says_they_find(
     pages: Pages, broken_shop: str, violation: Violation, run: Run
 ) -> None:
     findings = run(pages, broken_shop)
-    attach_findings(f"{run.check} on the broken shop: {run.state}", findings)
+    attach_findings(run.check, "broken", run.state, findings)
     assert any(explains(violation, finding, run) for finding in findings), (
         f"{run.check} did not report {violation.id} ({', '.join(violation.criteria)}) on the broken shop's "
         f"{run.state}; it reported:\n{lines(findings)}"
@@ -153,7 +159,7 @@ def test_the_checks_find_each_violation_the_registry_says_they_find(
 @pytest.mark.parametrize("run", RUNS, ids=[run.id for run in RUNS])
 def test_every_finding_on_the_broken_shop_is_a_planted_violation(pages: Pages, broken_shop: str, run: Run) -> None:
     findings = run(pages, broken_shop)
-    attach_findings(f"{run.check} on the broken shop: {run.state}", findings)
+    attach_findings(run.check, "broken", run.state, findings)
     unexplained = [finding for finding in findings if not any(explains(v, finding, run) for v in KEYBOARD_FINDS)]
     assert unexplained == [], (
         f"{run.check} reports on the broken shop's {run.state} what no registry entry with detected_by='keyboard' "

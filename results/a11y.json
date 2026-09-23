@@ -1,0 +1,146 @@
+{
+  "modes": {
+    "broken": {
+      "axe": {
+        "by_impact": {
+          "critical": 8,
+          "minor": 0,
+          "moderate": 0,
+          "serious": 7
+        }
+      },
+      "by_criterion": {
+        "1.1.1": 6,
+        "1.4.3": 1,
+        "2.1.1": 1,
+        "2.1.2": 2,
+        "2.4.3": 1,
+        "2.4.7": 26,
+        "3.1.1": 6,
+        "4.1.2": 2
+      },
+      "keyboard": {
+        "by_check": {
+          "checkout_by_keyboard": 1,
+          "dialog_escape": 1,
+          "dialog_trap": 1,
+          "focus_order": 1,
+          "focus_visible": 26
+        }
+      }
+    },
+    "fixed": {
+      "axe": {
+        "by_impact": {
+          "critical": 0,
+          "minor": 0,
+          "moderate": 0,
+          "serious": 0
+        }
+      },
+      "by_criterion": {},
+      "keyboard": {
+        "by_check": {
+          "checkout_by_keyboard": 0,
+          "dialog_escape": 0,
+          "dialog_trap": 0,
+          "focus_order": 0,
+          "focus_visible": 0
+        }
+      }
+    }
+  },
+  "registry": [
+    {
+      "criteria": [
+        "1.1.1"
+      ],
+      "detected_by": "axe",
+      "id": "img-alt",
+      "page": "list",
+      "title": "Product images on the list have no text alternative"
+    },
+    {
+      "criteria": [
+        "1.3.1",
+        "4.1.2"
+      ],
+      "detected_by": "axe",
+      "id": "field-label",
+      "page": "checkout",
+      "title": "The email field has no label, only words above it"
+    },
+    {
+      "criteria": [
+        "1.4.3"
+      ],
+      "detected_by": "axe",
+      "id": "contrast",
+      "page": "product",
+      "title": "The product page's price is light grey on white, 1.87:1"
+    },
+    {
+      "criteria": [
+        "2.1.1"
+      ],
+      "detected_by": "keyboard",
+      "id": "mouse-only",
+      "page": "list",
+      "title": "\"Add to cart\" on the product list works only with a mouse"
+    },
+    {
+      "criteria": [
+        "2.1.2"
+      ],
+      "detected_by": "keyboard",
+      "id": "keyboard-trap",
+      "page": "product",
+      "title": "The \"Added to cart\" dialog cannot be left with the keyboard"
+    },
+    {
+      "criteria": [
+        "2.4.3"
+      ],
+      "detected_by": "keyboard",
+      "id": "focus-order",
+      "page": "checkout",
+      "title": "Tab reaches three checkout fields first, out of their visual order"
+    },
+    {
+      "criteria": [
+        "2.4.7"
+      ],
+      "detected_by": "keyboard",
+      "id": "focus-visible",
+      "page": "every page",
+      "title": "Links and buttons show no focus indicator"
+    },
+    {
+      "criteria": [
+        "3.1.1"
+      ],
+      "detected_by": "axe",
+      "id": "page-lang",
+      "page": "every page",
+      "title": "Pages do not say what language they are in"
+    },
+    {
+      "criteria": [
+        "3.3.1"
+      ],
+      "detected_by": "manual",
+      "id": "error-identification",
+      "page": "checkout",
+      "title": "Checkout errors are shown only as a red border"
+    },
+    {
+      "criteria": [
+        "4.1.2"
+      ],
+      "detected_by": "manual",
+      "id": "div-button",
+      "page": "cart",
+      "title": "The cart's remove control has no role and no name"
+    }
+  ]
+}

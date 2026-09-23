@@ -7,10 +7,13 @@ dist/
 .pytest_cache/
 .ruff_cache/
 .env
-# What a run writes: raw Allure results, the rendered report, the findings
-# file and the published page are built from a run, not kept in history.
+# What a run writes: raw Allure results, the rendered report and the published
+# page are built from a run, not kept in history. The findings file
+# results/a11y.json is kept: the README's tables and the page are rendered
+# from it, and a test pins it to the registry.
 allure-results*
 allure-report/
-results/
+results/*
+!results/a11y.json
 site/
 test-results/

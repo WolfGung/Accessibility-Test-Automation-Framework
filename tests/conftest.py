@@ -1,4 +1,5 @@
-"""Fixtures every test module shares: the running shops, the mode under test, and the steps to the pages.
+"""Fixtures every test module shares: the running shops, the mode under test, and the steps to the pages; and the
+results file, written at the end of a complete run.
 
 One shop per mode runs for the whole session, served by uvicorn in a thread of
 this process on a free port, and every test layer talks to it over HTTP: the
@@ -12,6 +13,7 @@ import re
 import threading
 import time
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 
 import pytest
 import uvicorn
@@ -19,7 +21,8 @@ from playwright.sync_api import Page, expect
 
 from app.catalog import PRODUCTS
 from app.main import MODES, create_app
-from tests.helpers import PAGE_OF, PAGES
+from tests.helpers import FINDINGS, PAGE_OF, PAGES
+from tools.report import COLUMNS, LAYERS, RESULTS, ROOT, Key, summarize, total_findings, write
 
 MUG, NOTEBOOK = PRODUCTS[1], PRODUCTS[2]
 
@@ -135,3 +138,76 @@ def pages(page: Page) -> Pages:
 def state(request: pytest.FixtureRequest) -> str:
     """Each page state in turn, for a test that runs on every page."""
     return request.param
+
+
+# --- the results file ------------------------------------------------------
+
+#: Under this name a test module says what a complete run of it records (a set of `tools.report.Key`): every check
+#: of its layer on every page state, for both shops. `tests/test_axe.py` and `tests/test_keyboard.py` do.
+EXPECTED_RECORDS = "EXPECTED_RECORDS"
+
+
+@dataclass
+class Collector:
+    """The session's view of the results file: what a complete run records, which tests record it, and the outcome.
+
+    The file is written only from a complete run: every collected module that
+    records findings has every one of its records in the ledger, both layers
+    were collected, and none of the recording tests failed. A partial run — one
+    module, a `-k` selection, a stop on a failure — writes nothing, and the last
+    complete run's file stays; the terminal summary says which it was.
+    """
+
+    expected: frozenset[Key] = frozenset()
+    recording: frozenset[str] = frozenset()  # the node ids of the tests that record
+    failed: set[str] = field(default_factory=set)
+    outcome: str = ""
+
+    def why_not(self, recorded: set[Key]) -> str | None:
+        """Why this run is not one to write the file from; None when it is."""
+        if absent := set(LAYERS) - {key.layer for key in self.expected}:
+            layers = f"{' and '.join(sorted(absent))} layer{'s' if len(absent) > 1 else ''}"
+            return f"the browser tests of the {layers} were not collected"
+        if self.failed:
+            return f"{len(self.failed)} of the {len(self.recording)} tests that record findings failed"
+        if missing := self.expected - recorded:
+            named = ", ".join(f"{key.check} on the {key.mode} shop's {key.state}" for key in sorted(missing)[:3])
+            more = f" and {len(missing) - 3} more" if len(missing) > 3 else ""
+            return f"{len(missing)} of {len(self.expected)} records are missing ({named}{more})"
+        return None
+
+
+COLLECTOR = Collector()
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Note what a complete run records, and which tests record it, from the modules that were collected."""
+    expected: set[Key] = set()
+    recording: set[str] = set()
+    for item in session.items:
+        keys = getattr(getattr(item, "module", None), EXPECTED_RECORDS, None)
+        if keys:
+            expected |= keys
+            recording.add(item.nodeid)
+    COLLECTOR.expected, COLLECTOR.recording = frozenset(expected), frozenset(recording)
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    if report.failed and report.nodeid in COLLECTOR.recording:
+        COLLECTOR.failed.add(report.nodeid)
+
+
+def pytest_sessionfinish(session: pytest.Session) -> None:
+    """Write the results file when this run was complete; either way, note what happened for the summary."""
+    where = RESULTS.relative_to(ROOT)
+    if reason := COLLECTOR.why_not(FINDINGS.keys()):
+        COLLECTOR.outcome = f"{where} not written: {reason}"
+        return
+    data = summarize(FINDINGS.records.values())
+    write(data)
+    counts = ", ".join(f"{mode} shop {total_findings(data, mode)}" for mode in COLUMNS)
+    COLLECTOR.outcome = f"{where} written from this run: {len(FINDINGS.records)} records; findings: {counts}"
+
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
+    terminalreporter.write_line(COLLECTOR.outcome)

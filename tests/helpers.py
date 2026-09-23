@@ -1,5 +1,5 @@
 """What the test modules share: a client for a running shop, the page states the checks visit, a step a shopper
-takes, a reader for the pages, and a way to put a check's findings on the report.
+takes, a reader for the pages, and a way to put a check's findings on the report and keep them for the results file.
 
 Pages are read with the standard library's HTML parser, through `data-testid`
 and `id` attributes rather than layout.
@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING
 
 import allure
 import httpx
+
+from tools.report import Key, Record
 
 if TYPE_CHECKING:
     from a11y.axe import Finding
@@ -191,10 +193,49 @@ def rule_in(css: str, selectors: str) -> dict[str, str]:
     raise AssertionError(f"no top-level rule for {selectors!r}")
 
 
-# --- the report ------------------------------------------------------------
+# --- the report and the results file ---------------------------------------
 
 
-def attach_findings(name: str, findings: Sequence[Finding | KeyFinding]) -> None:
-    """Put a check's findings on the Allure report as a JSON list, one object per finding with all of its fields."""
-    body = json.dumps([dataclasses.asdict(finding) for finding in findings], indent=2)
-    allure.attach(body, name=name, attachment_type=allure.attachment_type.JSON)
+class Ledger:
+    """What the checks found this session, one record per key (mode, layer, page state, check), for the results file.
+
+    A key is recorded more than once when the broken shop's forward and reverse
+    tests run the same check on the same state; the copies must agree, and the
+    first is kept. Two copies that differ are a finding about determinism, not
+    a choice to make: the second one fails the test that brought it.
+    """
+
+    def __init__(self) -> None:
+        self.records: dict[Key, Record] = {}
+
+    def record(self, record: Record) -> None:
+        kept = self.records.setdefault(record.key, record)
+        if kept.findings != record.findings:
+            raise AssertionError(
+                f"{record.check} on the {record.mode} shop's {record.state} reported different findings in two "
+                f"tests:\nfirst:\n{as_json(kept.findings)}\nnow:\n{as_json(record.findings)}"
+            )
+
+    def keys(self) -> set[Key]:
+        return set(self.records)
+
+
+#: The session's ledger; `tests/conftest.py` writes the results file from it at the end of a complete run.
+FINDINGS = Ledger()
+
+
+def as_json(findings: Sequence[Finding | KeyFinding]) -> str:
+    """The findings as a JSON list, one object per finding with all of its fields."""
+    return json.dumps([dataclasses.asdict(finding) for finding in findings], indent=2)
+
+
+def attach_findings(check: str, mode: str, state: str, findings: Sequence[Finding | KeyFinding]) -> None:
+    """Put a check's findings on the Allure report and into the session's ledger.
+
+    `check` is `"axe"` for the scan or a keyboard check's name, `mode` the shop's
+    and `state` the page state, as `PAGES` names them. Every finding a test
+    produces passes through here, so the report and the results file agree.
+    """
+    name = f"{check} on the {mode} shop: {state}"
+    allure.attach(as_json(findings), name=name, attachment_type=allure.attachment_type.JSON)
+    FINDINGS.record(Record(mode=mode, state=state, check=check, findings=tuple(findings)))

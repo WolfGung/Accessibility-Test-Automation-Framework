@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accessibility checks on the example shop</title>
+  <style>
+    /* Colours on white: #1f2933 text 14.76:1, #1a56db links 6.18:1, #cbd2d9 for lines only. */
+    html {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.5;
+    }
+    body {
+      margin: 0;
+      color: #1f2933;
+      background: #ffffff;
+    }
+    main {
+      max-width: 64rem;
+      margin: 0 auto;
+      padding: 2rem clamp(1rem, 4vw, 2rem) 3rem;
+    }
+    h1 {
+      font-size: 2rem;
+      line-height: 1.25;
+      margin: 0 0 1rem;
+    }
+    h2 {
+      font-size: 1.25rem;
+      line-height: 1.3;
+      margin: 2rem 0 0.75rem;
+    }
+    a {
+      color: #1a56db;
+    }
+    /* Every link shows where the keyboard is. */
+    :focus-visible {
+      outline: 3px solid #1a56db;
+      outline-offset: 2px;
+    }
+    table {
+      width: 100%;
+      margin: 0 0 1rem;
+      border-collapse: collapse;
+    }
+    caption {
+      padding: 0 0 0.5rem;
+      font-weight: 700;
+      text-align: left;
+    }
+    th,
+    td {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #cbd2d9;
+      text-align: left;
+      vertical-align: top;
+    }
+    thead th {
+      background: #f5f7fa;
+    }
+    .count {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Accessibility checks on the example shop</h1>
+    <p>
+      Two copies of a small shop were checked against WCAG 2.1 AA success criteria: the <strong>broken shop</strong>,
+      which carries ten planted violations, and the <strong>fixed shop</strong>, which carries none. The scan is
+      axe-core, run on every page and on the open dialog. The keyboard checks press Tab, Shift+Tab, Enter, Space and
+      Escape and read where focus goes and how it is drawn. What neither can decide is on the manual checklist.
+    </p>
+    <p>
+      Built from the run of <time datetime="{{ date }}">{{ date }}</time> at commit <code>{{ commit }}</code>:
+      {{ totals.broken }} findings on the broken shop, {{ totals.fixed }} on the fixed shop.
+    </p>
+
+    <h2>What was found</h2>
+    <table>
+      <caption>Findings on the broken and the fixed shop: the scan by impact, the keyboard checks one by one</caption>
+      <thead>
+        <tr>
+          {% for cell in findings.header %}
+          <th scope="col"{% if not loop.first %} class="count"{% endif %}>{{ cell }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in findings.rows %}
+        <tr>
+          <th scope="row">{{ row[0] }}</th>
+          {% for cell in row[1:] %}
+          <td class="count">{{ cell }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h2>The ten planted violations</h2>
+    <table>
+      <caption>Each planted violation, its success criterion and the layer that finds it</caption>
+      <thead>
+        <tr>
+          {% for cell in registry.header %}
+          <th scope="col">{{ cell }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in registry.rows %}
+        <tr>
+          <th scope="row">{{ row[0] }}</th>
+          {% for cell in row[1:] %}
+          <td>{{ cell }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h2>The full report</h2>
+    <p>
+      <a href="{{ report }}">Allure report of this run</a>: every scan and every keyboard check on both shops, page by
+      page, with its findings attached.
+    </p>
+  </main>
+</body>
+</html>
