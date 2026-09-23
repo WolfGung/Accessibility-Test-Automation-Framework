@@ -328,9 +328,28 @@ def test_the_command_writes_the_page_for_the_commit_and_today(tmp_path: Path, mo
     assert out.read_text(encoding="utf-8") == site.build(report.load(), commit="0123456", date=date.today().isoformat())
 
 
-def test_the_commit_comes_from_the_workflow_or_else_from_git(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_commit_comes_from_the_command_line_the_workflow_or_else_from_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setenv("GITHUB_SHA", "0123456789abcdef0123456789abcdef01234567")
     assert site.commit_of() == "0123456"
+    assert site.commit_of("fedcba9876543210fedcba9876543210fedcba98") == "fedcba9"  # the command line comes first
+
+    # No checkout to ask (a downloaded archive, the compose image without `.git`) and no `GITHUB_SHA`: one sentence
+    # that names the way out, not a traceback; with the commit given, the page is written all the same.
+    monkeypatch.delenv("GITHUB_SHA")
+    monkeypatch.setattr(site, "ROOT", tmp_path)
+    with pytest.raises(ValueError, match=r"GITHUB_SHA.*--commit"):
+        site.commit_of()
+    out = tmp_path / "index.html"
+    assert site.main(["--out", str(out)]) == 1
+    assert "--commit" in capsys.readouterr().err and not out.exists()
+    assert site.main(["--out", str(out), "--commit", "0123abc"]) == 0
+    assert out.read_text(encoding="utf-8") == site.build(report.load(), commit="0123abc", date=date.today().isoformat())
+
+    monkeypatch.setenv("PATH", str(tmp_path / "no-git-here"))  # no git binary at all: the same sentence
+    with pytest.raises(ValueError, match=r"GITHUB_SHA.*--commit"):
+        site.commit_of()
 
     asked: list[list[str]] = []
 
@@ -338,7 +357,6 @@ def test_the_commit_comes_from_the_workflow_or_else_from_git(monkeypatch: pytest
         asked.append(command)
         return subprocess.CompletedProcess(command, 0, stdout="987611e\n", stderr="")
 
-    monkeypatch.delenv("GITHUB_SHA")
     monkeypatch.setattr(site.subprocess, "run", git)
     assert site.commit_of() == "987611e"
     assert asked == [["git", "rev-parse", "--short", "HEAD"]]

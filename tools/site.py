@@ -1,14 +1,16 @@
 """The published page, rendered from the results file.
 
-    python -m tools.site   # writes site/index.html for the current commit and today's date
+    python -m tools.site                   # writes site/index.html for the current commit and today's date
+    python -m tools.site --commit 0123abc  # the same, where there is no checkout to ask for the commit
 
 The page carries the README's two tables, a link to the Allure report the
 workflow puts next to it under `report/`, and the date and commit of the run
 it was built from — both given to `build`, because the file itself carries
-no time. It is a plain document, held to what the shop is held to: its own
-language, one heading level after another, tables with a caption and header
-cells, text with contrast above 4.5:1 and a visible focus style; a test runs
-the same scan on it as on the shop.
+no time. The commit is the one given, else the workflow's `GITHUB_SHA`, else
+git's `HEAD` here. It is a plain document, held to what the shop is held to:
+its own language, one heading level after another, tables with a caption and
+header cells, text with contrast above 4.5:1 and a visible focus style; a test
+runs the same scan on it as on the shop.
 """
 from __future__ import annotations
 
@@ -60,24 +62,32 @@ def build(data: dict, *, commit: str, date: str) -> str:
     )
 
 
-def commit_of() -> str:
-    """The commit the page is built from: the workflow's `GITHUB_SHA`, shortened, or else what git says here."""
-    sha = os.environ.get("GITHUB_SHA")
+def commit_of(given: str | None = None) -> str:
+    """The commit the page is built from, shortened: the one given, else the workflow's `GITHUB_SHA`, else what git
+    says here. Without any of them (an archive without `.git`, or no git on the machine) a `ValueError` names the
+    way out."""
+    sha = given or os.environ.get("GITHUB_SHA")
     if sha:
         return sha[:7]
-    found = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, check=True, capture_output=True, text=True
-    )
+    try:
+        found = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, check=True, capture_output=True, text=True
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        raise ValueError(
+            "not a git checkout (or no git on PATH) and GITHUB_SHA is not set: pass the commit with --commit"
+        ) from None
     return found.stdout.strip()
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m tools.site", description="Build the page from the results file.")
     parser.add_argument("--out", type=Path, default=SITE, help=f"where to write the page (default: {SITE})")
+    parser.add_argument("--commit", help="the commit the page is built from (default: GITHUB_SHA, or else git's HEAD)")
     args = parser.parse_args(argv)
     try:
-        html = build(load(), commit=commit_of(), date=date.today().isoformat())
-    except (OSError, ValueError) as error:  # no results file, or a stale one
+        html = build(load(), commit=commit_of(args.commit), date=date.today().isoformat())
+    except (OSError, ValueError) as error:  # no results file, a stale one, or no commit to name
         print(error, file=sys.stderr)
         return 1
     args.out.parent.mkdir(parents=True, exist_ok=True)
