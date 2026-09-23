@@ -227,38 +227,57 @@ async def test_list_images_have_alt_text_only_in_the_fixed_mode(shop: httpx.Asyn
 async def test_the_email_field_has_a_label_only_in_the_fixed_mode(shop: httpx.AsyncClient, mode: str) -> None:
     page = await visit(shop, "checkout")
     email = page.one(id="email")
-    # Nothing else names it in either mode: no label around it, no aria-label, no title.
-    assert not {"aria-label", "aria-labelledby", "title"} & email.attrs.keys()
+    wrapper = email.parent
+    assert wrapper is not None and "field" in wrapper.classes
+    # Nothing but a label could name it, in either mode: no label around it, no aria-label, no title, no placeholder.
+    assert not {"aria-label", "aria-labelledby", "title", "placeholder"} & email.attrs.keys()
     assert "label" not in [outer.tag for outer in email.ancestors]
+    inside = [(element.tag, element.text) for element in page.within(wrapper)]
     if mode == "broken":
         assert page.all("label", for_="email") == []
-        assert email.attrs["placeholder"] == "Email address"
+        # The words are still shown above the field, as plain text that nothing ties to it.
+        assert inside == [("span", "Email address"), ("input", "")]
+        assert page.within(wrapper)[0].classes == ["field-text"]
     else:
         assert page.one("label", for_="email").text == "Email address"
-        assert "placeholder" not in email.attrs
-    # The other five fields keep their labels in both modes.
+        assert inside == [("label", "Email address"), ("input", "")]
+    # The other five fields keep their labels, and nothing on the page has a placeholder, in both modes.
     for name, label in LABELS.items():
         if name != "email":
             assert page.one("label", for_=name).text == label
-            assert "placeholder" not in page.one(id=name).attrs
+    assert [element.attrs.get("id") for element in page.elements if "placeholder" in element.attrs] == []
 
 
 @pins("contrast")
-async def test_prices_have_enough_contrast_only_in_the_fixed_mode(shop: httpx.AsyncClient, mode: str) -> None:
+async def test_the_product_price_has_enough_contrast_only_in_the_fixed_mode(
+    shop: httpx.AsyncClient, mode: str
+) -> None:
     stylesheet = (APP / "static" / "shop.css").read_text(encoding="utf-8")
-    # Prices sit on the page's white: nothing under them paints another colour.
+    # Prices sit on the page's white, nothing under them paints another colour, and only the page's own style
+    # block colours them.
     assert rule_in(stylesheet, "body")["background"] == "#ffffff"
     assert "background" not in rule_in(stylesheet, ".product-card")
-    for state, price in (("product", "product-price"), ("list", f"product-price-{MUG.id}")):
-        page = await visit(shop, state)
-        assert "price" in page.testid(price).classes
-        colour = rule_in(style_of(page), ".price")["color"]
+    assert "color" not in rule_in(stylesheet, ".price") and "color" not in rule_in(stylesheet, ".product-price")
+    product, listing = await visit(shop, "product"), await visit(shop, "list")
+    style = style_of(product)
+    assert style == style_of(listing)  # one style block, from base.html, on every page
+    # `product-price` is on the product page's price alone; the list's prices carry `price` only.
+    assert product.testid("product-price").classes == ["price", "product-price"]
+    with_class = [each.attrs.get("data-testid") for each in product.elements if "product-price" in each.classes]
+    assert with_class == ["product-price"]
+    assert [listing.testid(f"product-price-{p.id}").classes for p in PRODUCTS] == [["price"]] * len(PRODUCTS)
+    assert [each for each in listing.elements if "product-price" in each.classes] == []
+    # `.price`, the colour of the list's prices, keeps its contrast in both modes.
+    assert contrast_ratio(rule_in(style, ".price")["color"], "#ffffff") >= 4.5
+    if mode == "broken":
+        colour = rule_in(style, ".product-price")["color"]
         ratio = contrast_ratio(colour, "#ffffff")
-        if mode == "broken":
-            assert (colour, round(ratio, 2)) == ("#b8bec6", 1.87)
-            assert ratio < 3  # below even the 3:1 that large text, like the product page's price, needs
-        else:
-            assert ratio >= 4.5
+        assert (colour, round(ratio, 2)) == ("#b8bec6", 1.87)
+        assert ratio < 3  # below even the 3:1 that large text, like this 24px bold price, needs
+        # The same specificity as `.price`, so it wins on the product page only by coming later.
+        assert style.index(".price {") < style.index(".product-price {")
+    else:
+        assert ".product-price" not in style
 
 
 @pins("mouse-only")

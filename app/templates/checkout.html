@@ -51,10 +51,11 @@ field{% if field in errors %} field-with-error{% endif %}
           <input id="name" name="name" type="text" autocomplete="name" required value="{{ values['name'] }}" data-testid="checkout-name"{{ error_attributes("name") }}>
         </div>
         <div class="{{ field_class('email') }}">
-          {# Violation field-label: a placeholder instead of a label. #}
+          {# Violation field-label: the words stand above the field as plain text; nothing ties them to it. #}
           {% if broken %}
+          <span class="field-text">Email address</span>
           {{ error_message("email") }}
-          <input id="email" name="email" type="email" autocomplete="email" spellcheck="false" required placeholder="Email address" value="{{ values['email'] }}" data-testid="checkout-email"{{ error_attributes("email") }}>
+          <input id="email" name="email" type="email" autocomplete="email" spellcheck="false" required value="{{ values['email'] }}" data-testid="checkout-email"{{ error_attributes("email") }}>
           {% else %}
           <label for="email">Email address</label>
           {{ error_message("email") }}

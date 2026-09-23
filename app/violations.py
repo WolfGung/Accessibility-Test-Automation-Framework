@@ -2,8 +2,8 @@
 
 Each one is a single `{% if broken %}` branch in the templates, under a comment
 that names its id; with `A11Y_MODE=fixed` the other side of every branch is
-rendered and the page is accessible there. This registry is the one list of
-them: anything that needs the list reads it from here.
+rendered, without the violation. This registry is the one list of them:
+anything that needs the list reads it from here.
 
 `criteria` are WCAG 2.1 success criteria. `page` is where the violation shows,
 by the shop's own names for its pages (`list`, `product`, `cart`, `checkout`),
@@ -37,21 +37,24 @@ VIOLATIONS: tuple[Violation, ...] = (
     ),
     Violation(
         id="field-label",
-        title="The email field has a placeholder instead of a label",
+        title="The email field has no label, only words above it",
         criteria=("1.3.1", "4.1.2"),
         page="checkout",
         where=(
-            "The email address field: no `label` is tied to it, and the placeholder that stands in for one "
-            "is gone as soon as something is typed"
+            'The email address field: "Email address" stands above it as plain text that nothing ties to it; '
+            "no `label`, no `aria-label`, no `aria-labelledby`, no `title` and no `placeholder`"
         ),
         detected_by="unknown",
     ),
     Violation(
         id="contrast",
-        title="Prices are light grey on white, 1.87:1",
+        title="The product page's price is light grey on white, 1.87:1",
         criteria=("1.4.3",),
         page="product",
-        where="The price, `#b8bec6` on `#ffffff`; the prices on the product list share the colour",
+        where=(
+            "The price on the product page, `#b8bec6` on `#ffffff`, from a rule on `.product-price`; "
+            "the list's prices keep the colour of `.price`"
+        ),
         detected_by="unknown",
     ),
     Violation(

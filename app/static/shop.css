@@ -234,6 +234,14 @@ main {
   font-weight: 600;
 }
 
+/* Text set above a field the way its label is, without being one: the
+   checkout in the broken mode shows the email field's name this way. */
+.field .field-text {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+
 input,
 select {
   width: 100%;

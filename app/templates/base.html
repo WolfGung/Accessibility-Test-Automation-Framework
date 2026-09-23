@@ -14,12 +14,11 @@
     /* Two rules live here instead of in shop.css, so that each is one place
        in the page source: the colour of prices and the focus indicator. */
 
-    {# Violation contrast: prices in #b8bec6 on white, 1.87:1. #}
-    {% if broken %}
-    .price { color: #b8bec6; }
-    {% else %}
     /* #0b6e4f on white is 6.25:1; text needs at least 4.5:1. */
     .price { color: #0b6e4f; }
+    {# Violation contrast: the product page's price in #b8bec6 on white, 1.87:1. #}
+    {% if broken %}
+    .product-price { color: #b8bec6; }
     {% endif %}
 
     /* Every link, button and field shows where the keyboard is. */
