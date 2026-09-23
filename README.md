@@ -116,9 +116,9 @@ The tests, counted by `pytest --collect-only` and pinned by [`tests/test_readme_
 | [`tests/test_vendor.py`](tests/test_vendor.py) | the vendored axe-core is 4.13.0 byte for byte, with its licence | 3 |
 | [`tests/test_axe.py`](tests/test_axe.py) | the scan in Chromium: nothing serious on the fixed shop; on the broken one, each violation the registry says axe finds and nothing serious it does not explain | 22 |
 | [`tests/test_keyboard.py`](tests/test_keyboard.py) | the keyboard checks in Chromium: clean on the fixed shop; on the broken one, each violation the registry says they find and nothing else | 31 |
-| [`tests/test_report.py`](tests/test_report.py) | the results file, the tables, the published page (scanned with axe as the shop is) and the checklist | 33 |
+| [`tests/test_report.py`](tests/test_report.py) | the results file, the tables, the published page (scanned with axe as the shop is) and the checklist | 36 |
 | [`tests/test_readme_pins.py`](tests/test_readme_pins.py) | this README: the block, these counts, the registry's numbers, the links, the badges and the words | 12 |
-| the whole suite, `make test` | all of the rows above, in one process, against shops it starts itself | 232 |
+| the whole suite, `make test` | all of the rows above, in one process, against shops it starts itself | 235 |
 
 ## Licence
 

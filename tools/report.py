@@ -224,9 +224,19 @@ def _same(what: str, found: Iterable[str], known: Iterable[str]) -> None:
 
 def registry_rows(data: dict) -> list[tuple[str, ...]]:
     """The registry table's rows: each planted violation's criteria, title and what found it."""
+    _known("what finds the registry's entries", {entry["detected_by"] for entry in data["registry"]}, FOUND_BY)
     return [
         (", ".join(entry["criteria"]), entry["title"], FOUND_BY[entry["detected_by"]]) for entry in data["registry"]
     ]
+
+
+def _known(what: str, found: Iterable[str], known: Iterable[str]) -> None:
+    """The file names only ways of finding the code has words for, or it is stale: say which it does not."""
+    if unknown := set(found) - set(known):
+        raise ValueError(
+            f"{what} in the results file are not the code's: the file has {sorted(unknown)} the code has no words "
+            "for; re-run the suite"
+        )
 
 
 def markdown_table(header: Sequence[str], rows: Iterable[Sequence[str]], numbers_from: int | None = None) -> str:
@@ -267,8 +277,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     what = parser.add_mutually_exclusive_group(required=True)
     what.add_argument("--readme", action="store_true", help="print the block that goes between the README's markers")
     what.add_argument("--update-readme", action="store_true", help="write the block between the README's markers")
-    parser.add_argument("--file", type=Path, default=README, help="the README to update (default: the repository's)")
+    parser.add_argument(
+        "--file", type=Path, help="with --update-readme: the README to update (default: the repository's)"
+    )
     args = parser.parse_args(argv)
+    if args.readme and args.file is not None:
+        parser.error("--file goes with --update-readme; --readme prints the block and writes no file")
+    if args.file is None:
+        args.file = README
     try:
         block = readme_block(load())
     except FileNotFoundError as error:

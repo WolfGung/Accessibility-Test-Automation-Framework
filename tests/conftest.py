@@ -152,10 +152,13 @@ class Collector:
     """The session's view of the results file: what a complete run records, which tests record it, and the outcome.
 
     The file is written only from a complete run: every collected module that
-    records findings has every one of its records in the ledger, both layers
-    were collected, and none of the recording tests failed. A partial run — one
-    module, a `-k` selection, a stop on a failure — writes nothing, and the last
-    complete run's file stays; the terminal summary says which it was.
+    records findings has every one of its records in the ledger and nothing
+    else is in it, both layers were collected, and none of the recording tests
+    failed. A partial run — one module, a `-k` selection, a stop on a failure —
+    writes nothing, and the last complete run's file stays; so does a run with a
+    record no module declared (a module that attaches findings without
+    `EXPECTED_RECORDS`, a mistyped state), which would otherwise be counted in
+    without being required. The terminal summary says which it was.
     """
 
     expected: frozenset[Key] = frozenset()
@@ -171,10 +174,16 @@ class Collector:
         if self.failed:
             return f"{len(self.failed)} of the {len(self.recording)} tests that record findings failed"
         if missing := self.expected - recorded:
-            named = ", ".join(f"{key.check} on the {key.mode} shop's {key.state}" for key in sorted(missing)[:3])
-            more = f" and {len(missing) - 3} more" if len(missing) > 3 else ""
-            return f"{len(missing)} of {len(self.expected)} records are missing ({named}{more})"
+            return f"{len(missing)} of {len(self.expected)} records are missing ({_named(missing)})"
+        if extra := recorded - self.expected:
+            return f"{len(extra)} record{'s' if len(extra) > 1 else ''} no module declared ({_named(extra)})"
         return None
+
+
+def _named(keys: set[Key]) -> str:
+    """Up to three of the records, in words, and how many more there are."""
+    named = ", ".join(f"{key.check} on the {key.mode} shop's {key.state}" for key in sorted(keys)[:3])
+    return named + (f" and {len(keys) - 3} more" if len(keys) > 3 else "")
 
 
 COLLECTOR = Collector()

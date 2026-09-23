@@ -22,9 +22,10 @@ from a11y.axe import Finding, describe, scan
 from a11y.keyboard import CRITERIA, KeyFinding
 from app.main import MODES
 from app.violations import VIOLATIONS
+from tests.conftest import Collector
 from tests.helpers import Element, Ledger, Page
 from tools import report, site
-from tools.report import IMPACTS, Record, readme_block, summarize, to_json, update_readme
+from tools.report import IMPACTS, Key, Record, readme_block, summarize, to_json, update_readme
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECKLIST = ROOT / "docs" / "manual-checklist.md"
@@ -173,6 +174,38 @@ def test_the_ledger_keeps_one_copy_of_a_record_and_refuses_a_different_copy() ->
     assert ledger.keys() == {first.key}
 
 
+def test_the_collector_writes_only_from_a_run_with_every_record_and_no_other() -> None:
+    """A synthetic session: both layers collected, two records expected. The file is written from a run that recorded
+    exactly those; not from one where a recording test failed, a record is missing, or a record no module declared
+    got in (a module that attaches findings without `EXPECTED_RECORDS`, or a mistyped state).
+    """
+    expected = frozenset({Key.of("broken", "list", "axe"), Key.of("fixed", "product", "dialog_trap")})
+    recording = frozenset({"tests/test_a.py::test_x", "tests/test_b.py::test_y"})
+    collector = Collector(expected=expected, recording=recording)
+    ledger = Ledger()
+    ledger.record(Record("broken", "list", "axe", (finding("image-alt", "critical", "1.1.1"),)))
+    ledger.record(Record("fixed", "product", "dialog_trap", ()))
+    assert collector.why_not(ledger.keys()) is None
+
+    ledger.record(Record("broken", "lists", "axe", ()))  # a state no module declared
+    assert collector.why_not(ledger.keys()) == "1 record no module declared (axe on the broken shop's lists)"
+    ledger.record(Record("fixed", "cart", "focus_order", ()))
+    assert collector.why_not(ledger.keys()) == (
+        "2 records no module declared (axe on the broken shop's lists, focus_order on the fixed shop's cart)"
+    )
+
+    assert collector.why_not({Key.of("broken", "list", "axe")}) == (
+        "1 of 2 records are missing (dialog_trap on the fixed shop's product)"
+    )
+    collector.failed.add("tests/test_b.py::test_y")
+    assert collector.why_not(set(expected)) == "1 of the 2 tests that record findings failed"
+    one_layer = Collector(expected=frozenset({Key.of("broken", "list", "axe")}), recording=frozenset({"t::x"}))
+    assert one_layer.why_not({Key.of("broken", "list", "axe")}) == (
+        "the browser tests of the keyboard layer were not collected"
+    )
+    assert Collector().why_not(set()) == "the browser tests of the axe and keyboard layers were not collected"
+
+
 # --- the README block --------------------------------------------------------
 
 
@@ -221,6 +254,23 @@ def test_a_file_whose_checks_or_impacts_differ_from_the_code_is_refused() -> Non
         readme_block(data)
 
 
+def test_a_file_whose_registry_names_a_way_of_finding_the_code_has_no_words_for_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    data = summarize(RECORDS)
+    data["registry"][0]["detected_by"] = "hover"
+    with pytest.raises(ValueError, match=r"hover.*re-run the suite"):
+        readme_block(data)
+    # Both commands say the file is stale, as they do for an impact or a check the code does not have: no traceback.
+    monkeypatch.setattr(report, "RESULTS", tmp_path / "a11y.json")
+    report.write(data)
+    assert report.main(["--readme"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == "" and "hover" in captured.err and "re-run the suite" in captured.err
+    assert site.main(["--out", str(tmp_path / "index.html")]) == 1
+    assert "hover" in capsys.readouterr().err and not (tmp_path / "index.html").exists()
+
+
 BLOCK = "| a |\n| --- |\n| 1 |\n"
 
 
@@ -262,6 +312,17 @@ def test_the_command_says_when_a_readme_has_no_markers(tmp_path: Path, capsys: p
     assert captured.out == ""
     assert str(readme) in captured.err and "<!-- a11y:start -->" in captured.err
     assert readme.read_text(encoding="utf-8") == "# T\n"
+
+
+def test_the_command_refuses_a_file_next_to_readme(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text("# T\n\n<!-- a11y:start -->\n<!-- a11y:end -->\n", encoding="utf-8")
+    with pytest.raises(SystemExit) as refused:  # a usage error, as argparse reports one
+        report.main(["--readme", "--file", str(readme)])
+    assert refused.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and "--file" in captured.err and "--update-readme" in captured.err
+    assert readme.read_text(encoding="utf-8") == "# T\n\n<!-- a11y:start -->\n<!-- a11y:end -->\n"
 
 
 # --- the committed file ------------------------------------------------------
