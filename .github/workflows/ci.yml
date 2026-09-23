@@ -1,0 +1,106 @@
+name: CI
+
+# Every push to main and every pull request: lint, then the whole suite in
+# Chromium, both shops and both layers, ending with the check that the
+# committed results file is what this run wrote. A push to main also builds
+# the page and the Allure report from that run and deploys them to GitHub
+# Pages, straight from the workflow. Nothing here reaches a site: the shops
+# start inside the test process, and the scanner is vendored.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only everywhere but the one job that deploys the page, which asks for
+# what a Pages deployment takes and nothing more.
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install -e ".[dev]"
+      - run: playwright install --with-deps chromium
+      - name: Run the suite against both shops
+        run: pytest --alluredir=allure-results
+      - name: The committed results file is what this run wrote
+        # A complete run rewrites results/a11y.json. A difference means the
+        # README's tables and the page describe an earlier run.
+        run: git diff --exit-code results/a11y.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allure-results
+          path: allure-results
+
+  site:
+    # The page and the report, built from the run above and published from
+    # main only: a pull request's ref is refs/pull/<n>/merge and never gets here.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      actions: read # to read this run's Allure results back
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # One deployment at a time; a newer one waits for the one under way
+    # rather than cancelling it halfway through.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    env:
+      ALLURE_VERSION: "2.30.0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install .
+      - name: Fetch the test job's Allure results
+        run: gh run download "$GITHUB_RUN_ID" --name allure-results --dir allure-results
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+      - name: Install the Allure command line
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/allure.tgz" \
+            "https://github.com/allure-framework/allure2/releases/download/$ALLURE_VERSION/allure-$ALLURE_VERSION.tgz"
+          tar -xzf "$RUNNER_TEMP/allure.tgz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/allure-$ALLURE_VERSION/bin" >> "$GITHUB_PATH"
+      - name: Build the page and the report
+        run: |
+          python -m tools.site
+          allure generate allure-results --clean --output site/report
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

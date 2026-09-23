@@ -1,0 +1,16 @@
+# Hidden directories and files: the virtual environment, git's own data, caches
+# and tool settings. Only the workflow is needed, since a test reads it.
+.*
+!.github
+# What a build or a run writes. The results file stays: the suite reads it.
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+build
+dist
+site
+allure-results*
+allure-report
+test-results
+results/*
+!results/a11y.json

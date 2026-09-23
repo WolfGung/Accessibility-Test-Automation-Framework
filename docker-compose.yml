@@ -1,0 +1,27 @@
+# `docker compose up shop` serves the shop on http://127.0.0.1:8000 in the mode
+# `A11Y_MODE` names, fixed when it is not set; `A11Y_MODE=broken docker compose
+# up shop` serves the broken one.
+#
+# `docker compose run --rm tests` runs the whole suite in a container built from
+# this checkout. The suite starts shops of its own inside the container, so it
+# needs no service, and the checkout on the host is not touched.
+services:
+  shop:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      A11Y_MODE: ${A11Y_MODE:-fixed}
+
+  tests:
+    build:
+      context: .
+      # Playwright's image ships the browsers its own version drives, so the
+      # package is pinned to that same version rather than to whatever pip
+      # would pick: the two numbers below are one.
+      dockerfile_inline: |
+        FROM mcr.microsoft.com/playwright/python:v1.63.0-noble
+        WORKDIR /app
+        COPY . .
+        RUN pip install --no-cache-dir ".[dev]" "playwright==1.63.0"
+    command: ["pytest", "-q", "-p", "no:cacheprovider"]
