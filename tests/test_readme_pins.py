@@ -45,12 +45,12 @@ WORDS = ("no", "one", "two", "three", "four", "five", "six", "seven", "eight", "
 #: The actions the workflow may use, each at the one version it is pinned to.
 ACTIONS = frozenset(
     {
-        "actions/checkout@v4",
-        "actions/setup-python@v5",
-        "actions/upload-artifact@v4",
-        "actions/download-artifact@v4",
-        "actions/upload-pages-artifact@v3",
-        "actions/deploy-pages@v4",
+        "actions/checkout@v7",
+        "actions/setup-python@v7",
+        "actions/upload-artifact@v7",
+        "actions/download-artifact@v8",
+        "actions/upload-pages-artifact@v5",
+        "actions/deploy-pages@v5",
     }
 )
 
@@ -239,7 +239,7 @@ def test_the_workflow_does_what_the_readme_says() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     uses = set(re.findall(r"^\s*-?\s*uses:\s*(\S+)", workflow, flags=re.M))
     assert uses <= ACTIONS, f"ci.yml uses an action that is not allowed here: {sorted(uses - ACTIONS)}"
-    assert {"actions/upload-pages-artifact@v3", "actions/deploy-pages@v4"} <= uses, "ci.yml publishes the page"
+    assert {"actions/upload-pages-artifact@v5", "actions/deploy-pages@v5"} <= uses, "ci.yml publishes the page"
     assert "git diff --exit-code results/a11y.json" in workflow, "ci.yml fails on a stale results file"
     assert "playwright install --with-deps chromium" in workflow, "ci.yml runs the suite with Chromium"
     assert "python -m tools.site" in workflow and "site/report" in workflow, "ci.yml builds the page and the report"
