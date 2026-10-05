@@ -117,8 +117,8 @@ The tests, counted by `pytest --collect-only` and pinned by [`tests/test_readme_
 | [`tests/test_axe.py`](tests/test_axe.py) | the scan in Chromium: nothing serious on the fixed shop; on the broken one, each violation the registry says axe finds and nothing serious it does not explain | 22 |
 | [`tests/test_keyboard.py`](tests/test_keyboard.py) | the keyboard checks in Chromium: clean on the fixed shop; on the broken one, each violation the registry says they find and nothing else | 33 |
 | [`tests/test_report.py`](tests/test_report.py) | the results file, the tables, the published page (scanned with axe as the shop is) and the checklist | 36 |
-| [`tests/test_readme_pins.py`](tests/test_readme_pins.py) | this README: the block, these counts, the registry's numbers, the links, the badges and the words | 12 |
-| the whole suite, `make test` | all of the rows above, in one process, against shops it starts itself | 237 |
+| [`tests/test_readme_pins.py`](tests/test_readme_pins.py) | this README: the block, these counts, the registry's numbers, the links, the badges and the words | 13 |
+| the whole suite, `make test` | all of the rows above, in one process, against shops it starts itself | 238 |
 
 ## Licence
 
@@ -126,13 +126,14 @@ MIT, see [`LICENSE`](LICENSE). axe-core is vendored unchanged under its own lice
 
 ## Related work
 
-Five more repositories from the same portfolio:
+Six more repositories from the same portfolio:
 
 - **[Toolshop-Test-Automation-Framework](https://github.com/WolfGung/Toolshop-Test-Automation-Framework)** — a test automation framework built from scratch for an online shop: API, browser and end-to-end cases against a public demo shop or a local Docker stand, with test design documents.
 - **[Marketplace-Test-Automation-Framework](https://github.com/WolfGung/Marketplace-Test-Automation-Framework)** — API and browser tests for a marketplace shop, run against a small stand shipped in the repository with a nightly drift check of the public demo site, a smoke set, video and traces per browser test and a published Allure report.
 - **[Web-Scraping-Automation-Framework](https://github.com/WolfGung/Web-Scraping-Automation-Framework)** — a scraper that collects two practice sites and a demo store of its own, over HTTP and through a browser, detects changes between nightly runs and publishes the data, the change report and the test report.
 - **[Test-Suite-Rescue](https://github.com/WolfGung/Test-Suite-Rescue)** — a deliberately sick test suite, its cured version with the same coverage on Playwright and on Selenium, and the measured difference between them against the same application, reproducible with one command.
 - **[API-Test-Generator](https://github.com/WolfGung/API-Test-Generator)** — a command-line tool that turns an OpenAPI document or a Postman collection into a runnable pytest suite, with four generated suites committed and proven against a sample API in CI.
+- **[LLM-Evaluation-Framework](https://github.com/WolfGung/LLM-Evaluation-Framework)** — layered checks for two LLM features, a RAG support assistant and ticket triage: rules, reference checks, safety cases against prompt injection and data leaks, repeat-run stability, an LLM judge measured against human labels and for position bias, and a regression gate in CI, all replayed from real recorded calls.
 
 ## Hire me
 

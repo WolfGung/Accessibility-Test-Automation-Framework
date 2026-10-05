@@ -266,9 +266,22 @@ def test_the_docker_files_are_what_the_readme_says() -> None:
 # --- the words ---------------------------------------------------------------
 
 
+def own_text(path: Path) -> str:
+    """The file's text without the README's Related work section, which
+    describes the other repositories of the portfolio, not this one."""
+    text = path.read_text(encoding="utf-8")
+    return re.sub(r"^## Related work\n.*?(?=^## )", "", text, flags=re.M | re.S)
+
+
+def test_only_the_related_work_section_is_left_out_of_the_word_check() -> None:
+    text = README.read_text(encoding="utf-8")
+    assert "## Related work" in text and "## Related work" not in own_text(README)
+    assert "## Hire me" in own_text(README)
+
+
 @pytest.mark.parametrize("path", [README, CHECKLIST, WORKFLOW], ids=lambda path: path.name)
 def test_no_word_this_repository_keeps_out_and_no_claim(path: Path) -> None:
-    text = path.read_text(encoding="utf-8")
+    text = own_text(path)
     for word in KEPT_OUT:
         assert not re.search(rf"\b{word}\b", text, flags=re.I), (
             f"{path.name} carries {word!r}, which this repository keeps out"
