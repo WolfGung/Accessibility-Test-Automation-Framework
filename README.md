@@ -2,7 +2,7 @@
 
 A small shop in a broken and a fixed mode, and the checks that test its pages against WCAG 2.1 AA success criteria.
 
-[![CI](https://github.com/WolfGung/Accessibility-Test-Automation-Framework/actions/workflows/ci.yml/badge.svg)](https://github.com/WolfGung/Accessibility-Test-Automation-Framework/actions/workflows/ci.yml)
+[![CI](https://github.com/WolfGung/Accessibility-Test-Automation-Framework/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/WolfGung/Accessibility-Test-Automation-Framework/actions/workflows/ci.yml)
 [![live report](https://img.shields.io/badge/live%20report-GitHub%20Pages-brightgreen)](https://wolfgung.github.io/Accessibility-Test-Automation-Framework/)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue)](pyproject.toml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)

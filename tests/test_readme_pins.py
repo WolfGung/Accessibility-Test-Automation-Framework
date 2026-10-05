@@ -194,7 +194,9 @@ def test_the_badges_name_this_repository_and_its_page() -> None:
     assert len(badges) == 4, "README: four badges, CI, live report, Python and licence"
     ci, live, python, licence = badges
     workflow = f"https://github.com/{REPOSITORY}/actions/workflows/ci.yml"
-    assert ci == f"[![CI]({workflow}/badge.svg)]({workflow})", "README: the CI badge is not this repository's workflow"
+    assert ci == f"[![CI]({workflow}/badge.svg?branch=main&event=push)]({workflow})", (
+        "README: the CI badge is not the push runs of main of this repository's workflow"
+    )
     assert live.startswith("[![live report]") and live.endswith(f"]({PAGE})"), "README: the live report is the page"
     [version] = re.findall(r'requires-python = ">=(\d+\.\d+)"', (ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert python == f"[![Python {version}](https://img.shields.io/badge/Python-{version}-blue)](pyproject.toml)", (
@@ -243,6 +245,13 @@ def test_the_workflow_does_what_the_readme_says() -> None:
     assert "git diff --exit-code results/a11y.json" in workflow, "ci.yml fails on a stale results file"
     assert "playwright install --with-deps chromium" in workflow, "ci.yml runs the suite with Chromium"
     assert "python -m tools.site" in workflow and "site/report" in workflow, "ci.yml builds the page and the report"
+    triggers = re.search(r"^on:\n((?:[ #].*\n|\n)*?)\S", workflow, flags=re.M)
+    assert triggers, "ci.yml: no `on:` block"
+    assert set(re.findall(r"^  (\w+):", triggers.group(1), flags=re.M)) == {"push", "pull_request"}, (
+        "ci.yml runs on every push to main and every pull request, and on nothing else"
+    )
+    runners = re.findall(r"^\s*runs-on:\s*(\S+)", workflow, flags=re.M)
+    assert runners and set(runners) == {"ubuntu-24.04"}, f"ci.yml: every job on the pinned runner image, not {runners}"
 
 
 def test_the_docker_files_are_what_the_readme_says() -> None:
